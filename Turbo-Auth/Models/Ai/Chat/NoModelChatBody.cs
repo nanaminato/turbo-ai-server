@@ -12,8 +12,8 @@ public class NoModelChatBody
     
     [JsonProperty("frequency_penalty")]
     public double? FrequencyPenalty { get; set; }
-    [JsonProperty("max_tokens")]
-    public int? MaxTokens { get; set; }
+    [JsonProperty("max_completion_tokens")]
+    public int? MaxCompletionTokens { get; set; }
     
     [JsonProperty("presence_penalty")]
     public double? PresencePenalty { get; set; }
@@ -41,7 +41,7 @@ public class NoModelChatBody
             sb.AppendLine(message.ToString());
         }
         return $"ChatBody: Messages=\n{sb}, " +
-               $"Model={Model}, FrequencyPenalty={FrequencyPenalty}, MaxTokens={MaxTokens}, PresencePenalty={PresencePenalty}, Stream={Stream}, Temperature={Temperature}, TopP={TopP}";
+               $"Model={Model}, FrequencyPenalty={FrequencyPenalty}, MaxCompletionTokens={MaxCompletionTokens}, PresencePenalty={PresencePenalty}, Stream={Stream}, Temperature={Temperature}, TopP={TopP}";
     }
 }
 

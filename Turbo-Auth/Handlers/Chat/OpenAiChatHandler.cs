@@ -36,9 +36,9 @@ public class OpenAiChatHandler : IChatHandler
         {
             Messages = messages,
             Model = modelKey.Model,
-            MaxTokens = chatBody.MaxTokens,
-            TopP = (float?)chatBody.TopP,
-            PresencePenalty = (float?)chatBody.PresencePenalty,
+            MaxCompletionTokens = chatBody.MaxCompletionTokens,
+            TopP = filterSpecial(chatBody.TopP,modelKey.Model),
+            PresencePenalty = filterSpecial(chatBody.PresencePenalty,modelKey.Model),
         });
         await foreach (var completion in completionResult)
         {
@@ -64,6 +64,15 @@ public class OpenAiChatHandler : IChatHandler
         }
 
         await response.CompleteAsync();
+    }
+
+    private float? filterSpecial(double? p,string model)
+    {
+        if (model.ToLower().StartsWith("o"))
+        {
+            return null;
+        }
+        return (float?)p;
     }
 
     private static List<ChatMessage> TransferObject(IEnumerable<Message> messages,bool vision=false)

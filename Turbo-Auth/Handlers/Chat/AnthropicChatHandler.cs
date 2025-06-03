@@ -16,7 +16,7 @@ public class AnthropicChatHandler: IChatHandler
         var parameters = new MessageParameters()
         {
             Messages = TransferObject(chatBody.Messages!),
-            MaxTokens = chatBody.MaxTokens??4000,
+            MaxTokens = chatBody.MaxCompletionTokens??4000,
             Model = modelKey.Model,
             Stream = true,
             Temperature = chatBody.Temperature.HasValue ? (decimal?)chatBody.Temperature.Value : null,
