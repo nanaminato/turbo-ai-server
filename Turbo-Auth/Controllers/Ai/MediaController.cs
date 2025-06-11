@@ -1,10 +1,9 @@
 ﻿using System.Net.Mime;
+using Betalgo.Ranul.OpenAI;
+using Betalgo.Ranul.OpenAI.Managers;
+using Betalgo.Ranul.OpenAI.ObjectModels.RequestModels;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
-using OpenAI;
-using OpenAI.Managers;
-using OpenAI.ObjectModels.RequestModels;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Ai.Image.Request;
 using Turbo_Auth.Models.Ai.Media.STT;
@@ -29,7 +28,7 @@ public class MediaController : Controller
     public async Task<IActionResult> TTS(AudioCreateSpeechRequest speechRequest)
     {
         var modelKey = _quickModel.GetModelAndKey(speechRequest.Model);
-        var openaiService = new OpenAIService(new OpenAiOptions()
+        var openaiService = new OpenAIService(new OpenAIOptions()
         {
             ApiKey = modelKey!.SupplierKey!.ApiKey!,
             BaseDomain = modelKey.SupplierKey.BaseUrl!
@@ -47,7 +46,7 @@ public class MediaController : Controller
     public async Task<IActionResult> WhisperTranslate(OpenAiTranslationRequest request)
     {
         var modelKey = _quickModel.GetModelAndKey(request.Model!);
-        var openaiService = new OpenAIService(new OpenAiOptions()
+        var openaiService = new OpenAIService(new OpenAIOptions()
         {
             ApiKey = modelKey!.SupplierKey!.ApiKey!,
             BaseDomain = modelKey.SupplierKey.BaseUrl!
@@ -61,7 +60,7 @@ public class MediaController : Controller
     public async Task<IActionResult> WhisperTranscription(OpenAiTranscriptionRequest request)
     {
         var modelKey = _quickModel.GetModelAndKey(request.Model!);
-        var openaiService = new OpenAIService(new OpenAiOptions()
+        var openaiService = new OpenAIService(new OpenAIOptions()
         {
             ApiKey = modelKey!.SupplierKey!.ApiKey!,
             BaseDomain = modelKey.SupplierKey.BaseUrl!
@@ -105,7 +104,7 @@ public class MediaController : Controller
     public async Task<IActionResult> Dall_E_3(DallE3Request imageCreate)
     {
         var modelKey = _quickModel.GetModelAndKey(imageCreate.Model!);
-        var openaiService = new OpenAIService(new OpenAiOptions()
+        var openaiService = new OpenAIService(new OpenAIOptions()
         {
             ApiKey = modelKey!.SupplierKey!.ApiKey!,
             BaseDomain = modelKey.SupplierKey.BaseUrl!

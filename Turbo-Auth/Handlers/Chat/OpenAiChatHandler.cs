@@ -1,8 +1,8 @@
-﻿using Microsoft.IdentityModel.Tokens;
+﻿using Betalgo.Ranul.OpenAI;
+using Betalgo.Ranul.OpenAI.Managers;
+using Betalgo.Ranul.OpenAI.ObjectModels.RequestModels;
+using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json;
-using OpenAI;
-using OpenAI.Managers;
-using OpenAI.ObjectModels.RequestModels;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Ai.Chat;
 
@@ -19,11 +19,16 @@ public class OpenAiChatHandler : IChatHandler
         var subRoute = path.TrimStart('/');
         var baseUrl = uri.GetLeftPart(UriPartial.Authority);
         
-        var option = new OpenAiOptions()
+        var option = new OpenAIOptions()
         {
             ApiKey = modelKey.SupplierKey!.ApiKey!,
             BaseDomain = baseUrl,
         };
+        if (baseUrl.Contains("azure.com"))
+        {
+            option.ProviderType = ProviderType.Azure;
+            option.DeploymentId = "jp-ai";
+        }
         if (!subRoute.IsNullOrEmpty())
         {
             option.ApiVersion = subRoute;
@@ -37,8 +42,8 @@ public class OpenAiChatHandler : IChatHandler
             Messages = messages,
             Model = modelKey.Model,
             MaxCompletionTokens = chatBody.MaxCompletionTokens,
-            TopP = filterSpecial(chatBody.TopP,modelKey.Model),
-            PresencePenalty = filterSpecial(chatBody.PresencePenalty,modelKey.Model),
+            TopP = FilterSpecial(chatBody.TopP,modelKey.Model),
+            PresencePenalty = FilterSpecial(chatBody.PresencePenalty,modelKey.Model),
         });
         await foreach (var completion in completionResult)
         {
@@ -66,9 +71,9 @@ public class OpenAiChatHandler : IChatHandler
         await response.CompleteAsync();
     }
 
-    private float? filterSpecial(double? p,string model)
+    private static float? FilterSpecial(double? p,string model)
     {
-        if (model.ToLower().StartsWith("o"))
+        if (model.StartsWith("o", StringComparison.CurrentCultureIgnoreCase))
         {
             return null;
         }
