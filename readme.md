@@ -60,9 +60,10 @@ turboai 系统是时候可以公开了。
 ## 使用  
 示例图片使用iis部署，并绑定了端口80。 
 host:8000/ai 访问对话界面  
-![img_2.png](img_2.png)
-host:8000/admin 访问 管理系统  
-![img_3.png](img_3.png)
-访问 host:8000/ 你将得不到任何东西，也可以放置一个index.html 到wwwroot下面。
 ![img_1.png](img_1.png)
+host:8000/admin 访问 管理系统  
+![img_2.png](img_2.png)
+访问 host:8000/ 你将得不到任何东西。
+![img_3.png](img_3.png)
+也可以放置一个index.html 到wwwroot下面。
 并设置自动跳转， 以便于可以跳转到/ai或者/admin。 
