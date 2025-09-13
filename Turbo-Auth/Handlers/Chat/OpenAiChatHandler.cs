@@ -73,7 +73,7 @@ public class OpenAiChatHandler : IChatHandler
 
     private static float? FilterSpecial(double? p,string model)
     {
-        if (model.StartsWith("o", StringComparison.CurrentCultureIgnoreCase))
+        if (model.StartsWith("o", StringComparison.CurrentCultureIgnoreCase)||model.Contains("mi"))
         {
             return null;
         }
