@@ -26,7 +26,10 @@ turboai 系统是时候可以公开了。
 部署和调试
 本地调试配置文件`appsettings.Development.json`以及部署的配置文件`Production.json`需要自行创建。
 位于 /Turbo-Auth 下  
-示例文件如下所示，主要关注的时数据库配置  
+示例文件如下所示，
+"Url": "http://0.0.0.0:8000"  代表程序监听本机所有ip地址的8000端口。
+主要关注的时数据库配置  
+
 ```json
 {
   "Logging": {
@@ -41,6 +44,13 @@ turboai 系统是时候可以公开了。
     "SecretKey": "ffriewoougewinlewknr;jr329ouoeuoieyouneededit"
   },
   "AllowedHosts": "*",
+  "Kestrel": {
+    "Endpoints": {
+      "Http": {
+        "Url": "http://0.0.0.0:8000"
+      }
+    }
+  },
   "ConnectionStrings": {
     "ciko": "server=localhost;port=3306;database=ciko;user=root;password=yourpassword;"
   }

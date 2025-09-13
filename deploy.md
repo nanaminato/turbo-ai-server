@@ -11,8 +11,12 @@
 当然在linux服务器部署时要进行适当的反向代理和配置，这里不过多介绍。  
 
 # 用户端，管理端
+https://github.com/nanaminato/turbo-user  
+https://github.com/nanaminato/turboai-admin  
 在项目根目录执行
 ```
 ng build
 ```
-构建项目之后，将构建的静态资源部署到静态服务程序上（如nginx)  
+构建之后,将turbo-user的项目放入 /wwwroot/ai 目录
+将turboai-admin的构建文件放入/wwwroot/admin 目录
+![img.png](img.png)

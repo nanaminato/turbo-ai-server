@@ -1,7 +1,1 @@
-wwwroot
-/wwwroot
 wwwroot/
-Resources/debug
-Entities
-*.Development.json
-*.Production.json
