@@ -67,3 +67,7 @@ host:8000/admin 访问 管理系统
 ![img_3.png](img_3.png)
 也可以放置一个index.html 到wwwroot下面。
 并设置自动跳转， 以便于可以跳转到/ai或者/admin。 
+# 模型配置示例
+对于部分类型的密钥，无需填写端点，填写任意端点即可。  
+![img_4.png](img_4.png)
+![img_5.png](img_5.png)
