@@ -29,6 +29,7 @@ turboai 系统是时候可以公开了。
 示例文件如下所示，
 "Url": "http://0.0.0.0:8000"  代表程序监听本机所有ip地址的8000端口。
 主要关注的时数据库配置  
+数据库使用 mysql.
 
 ```json
 {
@@ -52,9 +53,16 @@ turboai 系统是时候可以公开了。
     }
   },
   "ConnectionStrings": {
-    "ciko": "server=localhost;port=3306;database=ciko;user=root;password=yourpassword;"
+    "ciko": "server=yourserverip;port=3306;database=yourdatabasename;user=yourdbuser;password=yourpassword;Charset=utf8mb4"
   }
 }
 ```
-
-
+## 使用  
+示例图片使用iis部署，并绑定了端口80。 
+host:8000/ai 访问对话界面  
+![img_2.png](img_2.png)
+host:8000/admin 访问 管理系统  
+![img_3.png](img_3.png)
+访问 host:8000/ 你将得不到任何东西，也可以放置一个index.html 到wwwroot下面。
+![img_1.png](img_1.png)
+并设置自动跳转， 以便于可以跳转到/ai或者/admin。 

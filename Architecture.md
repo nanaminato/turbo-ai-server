@@ -1,4 +1,7 @@
-﻿该系统包含3个代码存储库。  
+﻿
+[过时]  
+[obsolete]  
+该系统包含3个代码存储库。  
 分别是 turboai-user,turboai-admin,turboai-server(open-turboai-server).  
 该系统采用前后端分离的架构进行设计，前端采用Angular17框架，并使用ioniframeword和
 angular-ant.  
