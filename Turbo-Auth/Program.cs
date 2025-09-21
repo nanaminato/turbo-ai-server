@@ -123,13 +123,6 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("user", policy => policy.RequireRole(["user"]));
     options.AddPolicy("vip", policy => policy.RequireRole(["vip"]));
 });
-// builder.WebHost.ConfigureKestrel(options =>
-// {
-//     var configuration = builder.Configuration;
-//     if (configuration["Azure"] != "NOT") return;
-//     var port = Int32.Parse(configuration["Port"]??"9000");
-//     options.ListenAnyIP(port); // 监听所有 IP 的 5001 端口
-// });
 var app = builder.Build();
 app.UseCors("CorsPolicy");
 app.UseStaticFiles();
@@ -147,9 +140,11 @@ if (app.Environment.IsDevelopment())
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapFallbackToFile("/ai/{*path:nonfile}", "ai/index.html");
-app.MapFallbackToFile("/admin/{*path:nonfile}", "admin/index.html");
-
+if (!app.Environment.IsDevelopment())
+{
+    app.MapFallbackToFile("/ai/{*path:nonfile}", "ai/index.html");
+    app.MapFallbackToFile("/admin/{*path:nonfile}", "admin/index.html");
+}
 app.MapControllers();
 var serviceProvider = app.Services.CreateScope().ServiceProvider;
 var loader = serviceProvider.GetRequiredService<IKeyLoader>();
