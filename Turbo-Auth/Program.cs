@@ -125,27 +125,26 @@ builder.Services.AddAuthorization(options =>
 });
 var app = builder.Build();
 app.UseCors("CorsPolicy");
-app.UseStaticFiles();
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHsts();
-}
+
+// if (!app.Environment.IsDevelopment())
+// {
+//     app.UseHsts();
+// }
 
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
+app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
-if (!app.Environment.IsDevelopment())
-{
-    app.MapFallbackToFile("/ai/{*path:nonfile}", "ai/index.html");
-    app.MapFallbackToFile("/admin/{*path:nonfile}", "admin/index.html");
-}
 app.MapControllers();
+app.MapFallbackToFile("/ai/{*path:nonfile}", "ai/index.html");
+app.MapFallbackToFile("/admin/{*path:nonfile}", "admin/index.html");
+
+
 var serviceProvider = app.Services.CreateScope().ServiceProvider;
 var loader = serviceProvider.GetRequiredService<IKeyLoader>();
 loader.LoadKeys();
