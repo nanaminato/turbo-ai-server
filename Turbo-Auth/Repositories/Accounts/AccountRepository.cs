@@ -53,6 +53,10 @@ public class AccountRepository: IAccountRepository
                 Password = accountBody.Password,
                 Email = accountBody.Email
             };
+            if (_authContext.Accounts!.Select(acc => acc.Username).Contains(account.Username))
+            {
+                throw new Exception("该用户已存在");
+            }
             await _authContext.Accounts!.AddAsync(account);
             await _authContext.SaveChangesAsync();
             if (accountBody.UserRoles == null) return;
