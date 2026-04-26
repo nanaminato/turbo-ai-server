@@ -10,7 +10,7 @@
 *.sln.docstates
 *.Development.json
 *.Production.json
-
+.idea/
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

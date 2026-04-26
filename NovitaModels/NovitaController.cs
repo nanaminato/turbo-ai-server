@@ -4,7 +4,12 @@ namespace NovitaModels;
 
 public class NovitaController
 {
-    private const string Key = "your novita ai key";
+    private string Key = "your novita ai key";
+    public NovitaController()
+    {
+        Key = Environment.GetEnvironmentVariable("NOVITA_KEY", EnvironmentVariableTarget.Machine);
+    }
+    
     public async Task<List<NovitaModel>?> GetVaeModels()
     {
         var client = new HttpClient();
