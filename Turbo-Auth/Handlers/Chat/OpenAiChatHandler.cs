@@ -1,7 +1,6 @@
 ﻿using Betalgo.Ranul.OpenAI;
 using Betalgo.Ranul.OpenAI.Managers;
 using Betalgo.Ranul.OpenAI.ObjectModels.RequestModels;
-using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Ai.Chat;
@@ -29,7 +28,7 @@ public class OpenAiChatHandler : IChatHandler
             option.ProviderType = ProviderType.Azure;
             option.DeploymentId = "jp-ai";
         }
-        if (!subRoute.IsNullOrEmpty())
+        if (!string.IsNullOrEmpty(subRoute))
         {
             option.ApiVersion = subRoute;
         }

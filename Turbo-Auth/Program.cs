@@ -42,14 +42,12 @@ builder.Services.AddControllers().AddNewtonsoftJson(options =>
 
 builder.Services.AddSignalR();
 builder.Services.AddSwaggerGen();
-var serverVersion = new MySqlServerVersion(new Version(8, 0, 34));
-
-// Replace 'YourDbContext' with the name of your own DbContext derived class.
+var serverVersion = new MySqlServerVersion(new Version(8, 4, 6));
 builder.Services.AddDbContext<AuthContext>(
     dbContextOptions =>
     {
         dbContextOptions
-            .UseMySql(builder.Configuration.GetConnectionString("DefaultConnection"), serverVersion)
+            .UseMySql(builder.Configuration.GetConnectionString("ciko"), serverVersion)
             .LogTo(Console.WriteLine, LogLevel.Error)
             .EnableSensitiveDataLogging()
             .EnableDetailedErrors();
@@ -59,16 +57,16 @@ builder.Services.AddDbContext<KeyContext>(
     dbContextOptions =>
     {
         dbContextOptions
-            .UseMySql(builder.Configuration.GetConnectionString("DefaultConnection"), serverVersion)
+            .UseMySql(builder.Configuration.GetConnectionString("ciko"), serverVersion)
             .LogTo(Console.WriteLine, LogLevel.Error)
             .EnableSensitiveDataLogging()
             .EnableDetailedErrors();
     }
 );
-builder.Services.AddGeminiClient(options =>
-{
-    options.ApiKey = "AIzaSyDW98j3Qe1nXWCq-6wGxAQfIZKCpD7zpa4";
-});
+// builder.Services.AddGeminiClient(options =>
+// {
+//     options.ApiKey = "AIzaSyDW98j3Qe1nXWCq-6wGxAQfIZKCpD7zpa4";
+// });
 builder.Services.AddScoped<IIdGetter, IdGetter>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<IAccountRoleRepository,AccountRoleRepository>();
@@ -148,4 +146,13 @@ app.MapFallbackToFile("/admin/{*path:nonfile}", "admin/index.html");
 var serviceProvider = app.Services.CreateScope().ServiceProvider;
 var loader = serviceProvider.GetRequiredService<IKeyLoader>();
 loader.LoadKeys();
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    var addresses = app.Urls;
+    foreach (var address in addresses)
+    {
+        Console.WriteLine($"应用已真正启动，监听地址: {address}");
+    }
+});
+
 app.Run();

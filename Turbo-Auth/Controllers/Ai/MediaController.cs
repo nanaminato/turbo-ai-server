@@ -1,5 +1,5 @@
-﻿using System.Net.Mime;
-using Betalgo.Ranul.OpenAI;
+﻿using Betalgo.Ranul.OpenAI;
+using Betalgo.Ranul.OpenAI.Contracts.Requests.Image;
 using Betalgo.Ranul.OpenAI.Managers;
 using Betalgo.Ranul.OpenAI.ObjectModels.RequestModels;
 using Microsoft.AspNetCore.Authorization;
@@ -101,25 +101,26 @@ public class MediaController : Controller
     }
 
     [HttpPost("dall-e-3")]
-    public async Task<IActionResult> Dall_E_3(DallE3Request imageCreate)
+    public async Task<IActionResult> Dall_E_3(DallE3Request createImage)
     {
-        var modelKey = _quickModel.GetModelAndKey(imageCreate.Model!);
+        var modelKey = _quickModel.GetModelAndKey(createImage.Model!);
         var openaiService = new OpenAIService(new OpenAIOptions()
         {
             ApiKey = modelKey!.SupplierKey!.ApiKey!,
             BaseDomain = modelKey.SupplierKey.BaseUrl!
         });
         var imageResult = await openaiService
-            .Image.CreateImage(new ImageCreateRequest()
-        {
-            Model = imageCreate.Model,
-            N = imageCreate.N,
-            Prompt = imageCreate.Prompt!,
-            Quality = imageCreate.Quality,
-            ResponseFormat = imageCreate.ResponseFormat,
-            Size = imageCreate.Size,
-            Style = imageCreate.Style
-        });
+            .Image.CreateImage(
+                new CreateImageRequest()
+                {
+                    Model = createImage.Model,
+                    N = createImage.N,
+                    Prompt = createImage.Prompt!,
+                    Quality = createImage.Quality,
+                    ResponseFormat = createImage.ResponseFormat,
+                    Size = createImage.Size,
+                    Style = createImage.Style
+                });
         // Console.WriteLine(imageResult);
         return Ok(imageResult);
     }

@@ -21,7 +21,7 @@ public partial class KeyContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseMySql(_configuration.GetConnectionString("ciko"), ServerVersion.Parse("8.0.35-mysql"));
+        optionsBuilder.UseMySql(_configuration.GetConnectionString("ciko"), ServerVersion.Parse("8.4.6-mysql"));
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

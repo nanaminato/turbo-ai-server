@@ -23,7 +23,7 @@ public partial class AuthContext : DbContext
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         // Console.WriteLine("CONNECT "+_configuration.GetConnectionString("ciko"));
-        optionsBuilder.UseMySql(_configuration.GetConnectionString("ciko"), ServerVersion.Parse("8.0.35-mysql"));
+        optionsBuilder.UseMySql(_configuration.GetConnectionString("ciko"), ServerVersion.Parse("8.4.6-mysql"));
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
