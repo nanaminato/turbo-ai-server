@@ -3,17 +3,32 @@ using Newtonsoft.Json;
 
 namespace Turbo_Auth.Models.Ai.Image.Request;
 
-public class DallE3Request
+public class GPTImageCreateRequest
 {
+    
+    [Required]
+    [JsonProperty("prompt")]
+    public string? Prompt
+    {
+        get;
+        set;
+    }
+
+    [JsonProperty("background")]
+    public string? Background
+    {
+        get;
+        set;
+    }
     [JsonProperty("model")]
     public string? Model
     {
         get;
         set;
     } = "dall-e-3";
-    [Required]
-    [JsonProperty("prompt")]
-    public string? Prompt
+
+    [JsonProperty("moderation")]
+    public string? Moderation
     {
         get;
         set;
@@ -26,12 +41,14 @@ public class DallE3Request
         set;
     } = 1;
 
-    [JsonProperty("size")]
-    public string? Size
+    [JsonProperty("output_format")]
+    public string? OutputFormat
     {
         get;
         set;
-    } = "1024x1024";
+    }
+
+    
 
     [JsonProperty("quality")]
     public string? Quality
@@ -46,6 +63,12 @@ public class DallE3Request
         get;
         set;
     } = "url";
+    [JsonProperty("size")]
+    public string? Size
+    {
+        get;
+        set;
+    } = "1024x1024";
 
     [JsonProperty("style")]
     public string? Style
