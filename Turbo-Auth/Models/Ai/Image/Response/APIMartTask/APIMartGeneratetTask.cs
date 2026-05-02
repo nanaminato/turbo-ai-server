@@ -4,8 +4,8 @@ namespace Turbo_Auth.Models.Ai.Image.Response.APIMartTask;
 
 public class APIMartGeneratetTask
 {
-    public string? Code { get; set; }
-    public APIMartTaskData? Data { get; set; }
+    public int? Code { get; set; }
+    public List<APIMartTaskData>? Data { get; set; }
     public APIMartTaskError? Error { get; set; }
 }
 

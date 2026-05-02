@@ -36,7 +36,7 @@ public class APIMartGPTImageController: Controller
         }
         var url = modelKey.SupplierKey!.BaseUrl+"/v1/images/generations";
         using var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("Authorization", "Bearer "+modelKey.SupplierKey);
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer "+modelKey.SupplierKey.ApiKey);
         var payload = JsonConvert.SerializeObject(request);
         var content = new StringContent(payload, Encoding.UTF8, "application/json");
         var response = await client.PostAsync(url, content);
@@ -55,7 +55,7 @@ public class APIMartGPTImageController: Controller
         }
         var url = modelKey.SupplierKey!.BaseUrl+"/v1/images/generations";
         using var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("Authorization", "Bearer "+modelKey.SupplierKey);
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer "+modelKey.SupplierKey.ApiKey);
         var payload = JsonConvert.SerializeObject(request);
         var content = new StringContent(payload, Encoding.UTF8, "application/json");
         var response = await client.PostAsync(url, content);

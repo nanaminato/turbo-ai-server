@@ -37,7 +37,7 @@ public class APIMartGPTImage2Request
     } = "1k";
 
     [JsonProperty("image_urls")]
-    public List<string> ImageUrls
+    public List<string>? ImageUrls
     {
         get;
         set;
