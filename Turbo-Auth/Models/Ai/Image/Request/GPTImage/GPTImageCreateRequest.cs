@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Newtonsoft.Json;
 
-namespace Turbo_Auth.Models.Ai.Image.Request;
+namespace Turbo_Auth.Models.Ai.Image.Request.GPTImage;
 
 public class GPTImageCreateRequest
 {

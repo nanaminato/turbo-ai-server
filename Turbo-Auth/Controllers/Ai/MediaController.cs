@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Ai.Image.Request;
+using Turbo_Auth.Models.Ai.Image.Request.GPTImage;
 using Turbo_Auth.Models.Ai.Media.STT;
 using Turbo_Auth.Models.Suppliers;
 
@@ -90,7 +91,6 @@ public class MediaController : Controller
     }
     private AudioCreateTranscriptionRequest Transfer(OpenAiTranscriptionRequest request)
     {
-        
         var audioRequest = new AudioCreateTranscriptionRequest()
         {
             Model = request.Model!,

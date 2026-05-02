@@ -1,5 +1,4 @@
-﻿using Turbo_Auth.Handlers.Group;
-using Turbo_Auth.Models.Suppliers;
+﻿using Turbo_Auth.Models.Suppliers;
 using ModelGroup = Turbo_Auth.Handlers.Group.ModelGroup;
 
 namespace Turbo_Auth.Handlers.Model2Key;
@@ -20,6 +19,26 @@ public class QuickModel
     {
         get;
         set;
+    }
+
+    public Dictionary<string, List<WeightKey>> GetQuick()
+    {
+        return _quick;
+    }
+    public List<ModelKey> GetModelKeys(string model)
+    {
+        var weightKeys = _quick[model];
+        var mws = new List<ModelKey>();
+        foreach (var weight in weightKeys)
+        {
+            mws.Add(new ModelKey()
+            {
+                Model = model,
+                SupplierKey = weight.SupplierKey
+            });
+        }
+
+        return mws;
     }
     public ModelKey? GetModelAndKey(string model)
     {
