@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Ai.Image.Response.APIMartTask;
-using Turbo_Auth.Models.Suppliers;
 
 namespace Turbo_Auth.Controllers.Ai;
 [ApiController]
@@ -25,19 +24,14 @@ public class APIMartGPTTaskController: Controller
     [HttpGet("getTask/{task_id}")]
     public async Task<IActionResult> GPTImage2OfficialGenerate(string task_id, string language)
     {
-        var weightKeys = _quickModel.GetQuick();
-        SupplierKey? supplierKey = null;
-        foreach (var key in weightKeys.Select(pair => pair.Value.FirstOrDefault(x => x.SupplierKey!.BaseUrl!.Contains("apimart"))).OfType<WeightKey>())
-        {
-            supplierKey = key.SupplierKey!;
-        }
-        if (supplierKey == null)
+        var apiMartKey = _quickModel.GetApiMartKey();
+        if (apiMartKey==null)
         {
             return BadRequest("no api key is available");
         }
-        var url = supplierKey!.BaseUrl+$"/v1/tasks/{task_id}?language={language}";
+        var url = apiMartKey!.BaseUrl+$"/v1/tasks/{task_id}?language={language}";
         using var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("Authorization", "Bearer "+supplierKey.ApiKey);
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer "+apiMartKey.ApiKey);
         
         var response = await client.GetAsync(url);
         var result = await response.Content.ReadAsStringAsync();

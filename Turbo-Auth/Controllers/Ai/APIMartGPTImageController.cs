@@ -28,15 +28,14 @@ public class APIMartGPTImageController: Controller
     [HttpPost("gpt-image-2")]
     public async Task<IActionResult> GPTImage2Generate(APIMartGPTImage2Request request)
     {
-        var modelKeys = _quickModel.GetModelKeys(request.Model);
-        var modelKey = modelKeys.FirstOrDefault(m=>m.SupplierKey!.BaseUrl!.Contains("apimart"));
-        if (modelKey == null)
+        var apiMartKey = _quickModel.GetApiMartKey();
+        if (apiMartKey==null)
         {
             return BadRequest("no api key is available");
         }
-        var url = modelKey.SupplierKey!.BaseUrl+"/v1/images/generations";
+        var url = apiMartKey!.BaseUrl+"/v1/images/generations";
         using var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("Authorization", "Bearer "+modelKey.SupplierKey.ApiKey);
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer "+apiMartKey.ApiKey);
         var payload = JsonConvert.SerializeObject(request);
         var content = new StringContent(payload, Encoding.UTF8, "application/json");
         var response = await client.PostAsync(url, content);
@@ -47,15 +46,14 @@ public class APIMartGPTImageController: Controller
     [HttpPost("gpt-image-2-official")]
     public async Task<IActionResult> GPTImage2OfficialGenerate(APIMartGPTImage2OfficialRequest request)
     {
-        var modelKeys = _quickModel.GetModelKeys(request.Model!);
-        var modelKey = modelKeys.FirstOrDefault(m=>m.SupplierKey!.BaseUrl!.Contains("apimart"));
-        if (modelKey == null)
+        var apiMartKey = _quickModel.GetApiMartKey();
+        if (apiMartKey==null)
         {
             return BadRequest("no api key is available");
         }
-        var url = modelKey.SupplierKey!.BaseUrl+"/v1/images/generations";
+        var url = apiMartKey!.BaseUrl+"/v1/images/generations";
         using var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("Authorization", "Bearer "+modelKey.SupplierKey.ApiKey);
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer "+apiMartKey.ApiKey);
         var payload = JsonConvert.SerializeObject(request);
         var content = new StringContent(payload, Encoding.UTF8, "application/json");
         var response = await client.PostAsync(url, content);

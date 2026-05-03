@@ -1,5 +1,4 @@
 ﻿using Turbo_Auth.Models.Suppliers;
-using ModelGroup = Turbo_Auth.Handlers.Group.ModelGroup;
 
 namespace Turbo_Auth.Handlers.Model2Key;
 
@@ -7,7 +6,7 @@ public class QuickModel
 {
     private Dictionary<string, List<WeightKey>> _quick = new();
     private List<SupplierKey> _novitaKeys = new();
-    private ModelGroup _group = new(false);
+    private List<SupplierKey> _apiMartKeys = new();
 
     public SupplierKey GetNovitaKey()
     {
@@ -15,7 +14,23 @@ public class QuickModel
         return _novitaKeys[rand.Next(_novitaKeys.Count)];
     }
 
+    public SupplierKey? GetApiMartKey()
+    {
+        if (_apiMartKeys.Count == 0)
+        {
+            return null;
+        }
+        var rand = new Random();
+        return _apiMartKeys[rand.Next(_apiMartKeys.Count)];
+    }
+
     public List<SupplierKey>? NovitaKeys
+    {
+        get;
+        set;
+    }
+
+    public List<SupplierKey>? ApiMartKeys
     {
         get;
         set;
@@ -67,19 +82,19 @@ public class QuickModel
             };
         }
 
-        var groupModels = _group.GetGroupModels(model);
-        if (groupModels == null) throw new Exception("当前数据库不存在支持当前模型以及可替代模型的的密钥");
-        var mixModelWeights = new List<ModelWeight>();
-        foreach (var groupModel in groupModels)
+        if (!_quick.ContainsKey(model))
         {
-            foreach (var weight in _quick[groupModel!])
+            throw new Exception("当前数据库不存在支持当前模型的密钥");
+        }
+            
+        var mixModelWeights = new List<ModelWeight>();
+        foreach (var weight in _quick[model])
+        {
+            mixModelWeights.Add(new ModelWeight()
             {
-                mixModelWeights.Add(new ModelWeight()
-                {
-                    Model = groupModel,
-                    WeightKey = weight
-                });
-            }
+                Model = model,
+                WeightKey = weight
+            });
         }
 
         var rModelWeight = WeightRandom(mixModelWeights);
@@ -112,11 +127,6 @@ public class QuickModel
 
         return modelWeights.Last();
     }
-    public ModelGroup ModelGroup
-    {
-        get => _group;
-        set => _group = value;
-    }
 
     public Dictionary<string, List<WeightKey>> Quick
     {
@@ -127,12 +137,8 @@ public class QuickModel
     public void Transfer(QuickModel quickModel)
     {
         _quick.Clear();
-        _group.Clear();
         _novitaKeys.Clear();
-        foreach (var group in quickModel.ModelGroup.Group)
-        {
-            _group.Group.Add(group);
-        }
+        _apiMartKeys.Clear();
 
         foreach (var (key, value) in quickModel.Quick)
         {
@@ -142,6 +148,12 @@ public class QuickModel
         foreach (var key in quickModel.NovitaKeys!)
         {
             _novitaKeys.Add(key);
+        }
+
+        if (quickModel.ApiMartKeys == null) return;
+        foreach (var key in quickModel.ApiMartKeys)
+        {
+            _apiMartKeys.Add(key);
         }
     }
 
