@@ -27,7 +27,7 @@ public class TaskRepository : ITaskRepository
         }
 
         return await query
-            .OrderByDescending(t => t.DateTime)
+            .OrderBy(t => t.DateTime)
             .ToListAsync();
     }
 
