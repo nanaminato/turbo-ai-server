@@ -10,7 +10,7 @@ public class GenerateTask
     [Key]
     [Required]
     [JsonProperty("task_id")]
-    public string? TaskId
+    public string TaskId
     {
         get;
         set;
@@ -30,12 +30,12 @@ public class GenerateTask
     [JsonProperty("account_id")]
     public int AccountId { get; set; }
 
-    [JsonProperty("dynamic")]
-    public string? Dynamic
-    {
-        get;
-        set;
-    }
+    [JsonProperty("images")]
+    public List<string>? Images { get; set; }
+    
+    [JsonProperty("videos")]
+    public List<string>? Videos { get; set; }
+    
     [JsonIgnore]
     [ForeignKey("AccountId")]
     public Account? Account { get; set; }

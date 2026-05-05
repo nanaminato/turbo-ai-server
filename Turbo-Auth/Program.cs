@@ -73,6 +73,7 @@ builder.Services.AddScoped<IKeyRepository, KeyRepository>();
 builder.Services.AddScoped<IModelRepository, ModelRepository>();
 builder.Services.AddScoped<IHistoryRepository, HistoryRepository>();
 builder.Services.AddScoped<IMessageRepository, MessageRepository>();
+builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 builder.Services.AddScoped<IFileContentExtractor, FileContentExtractor>();
 builder.Services.AddScoped<IPdfDocumentProcessor, PdfDocumentProcessor>();
 builder.Services.AddScoped<IWordDocumentProcessor, WordDocumentProcessor>();

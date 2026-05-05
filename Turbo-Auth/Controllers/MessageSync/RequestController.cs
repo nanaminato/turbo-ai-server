@@ -11,13 +11,15 @@ public class RequestController: Controller
 {
     private IHistoryRepository _history;
     private IMessageRepository _message;
+    private ITaskRepository _task;
     private IIdGetter _idGetter;
 
     public RequestController(IHistoryRepository history,
-        IMessageRepository message, IIdGetter idGetter)
+        IMessageRepository message, ITaskRepository task, IIdGetter idGetter)
     {
         _history = history;
         _message = message;
+        _task = task;
         _idGetter = idGetter;
     }
 
@@ -34,7 +36,7 @@ public class RequestController: Controller
         return Ok(histories);
     }
     
-    /* 请求一个聊天回话的信息
+    /* 请求一个聊天会话的信息
      */
     [HttpPost("messages")]
     public async Task<IActionResult> GetMessages(RequestMessage request)
@@ -42,6 +44,23 @@ public class RequestController: Controller
         var id = _idGetter.GetId(User);
         var messages = await _message.GetMessages(id,request.HistoryDataId,request.MessageIds!);
         return Ok(messages);
+    }
+
+    [HttpPost("tasks")]
+    public async Task<IActionResult> GetTasks(RequestTask request)
+    {
+        var id = _idGetter.GetId(User);
+        var tasks = await _task.GetGenerateTasks(id, request.TaskIds);
+        return Ok(tasks);
+    }
+}
+
+public class RequestTask
+{
+    public List<string>? TaskIds
+    {
+        get;
+        set;
     }
 }
 

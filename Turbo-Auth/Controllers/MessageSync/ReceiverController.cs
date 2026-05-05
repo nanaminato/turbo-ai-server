@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Turbo_Auth.Models.ClientSyncs.Messages;
 using Turbo_Auth.Models.Mediators.Messages;
+using Turbo_Auth.Models.Tasks;
 using Turbo_Auth.Repositories.Messages;
 
 namespace Turbo_Auth.Controllers.MessageSync;
@@ -13,12 +14,14 @@ public class ReceiverController: Controller
 {
     private IHistoryRepository _history;
     private IMessageRepository _message;
+    private ITaskRepository _task;
     private IIdGetter _idGetter;
     public ReceiverController(IHistoryRepository history,
-        IMessageRepository message, IIdGetter idGetter)
+        IMessageRepository message, ITaskRepository task, IIdGetter idGetter)
     {
         _history = history;
         _message = message;
+        _task = task;
         _idGetter = idGetter;
     }
 
@@ -40,6 +43,15 @@ public class ReceiverController: Controller
         return Ok();
     }
 
+    [HttpPost("task")]
+    public async Task<IActionResult> ReceiveTask(GenerateTask task)
+    {
+        var userId = _idGetter.GetId(User);
+        task.AccountId = userId;
+        await _task.AddTask(task);
+        return Ok();
+    }
+
     [HttpPut("history")]
     public async Task<IActionResult> UpdateHistory(ChatHistory history)
     {
@@ -55,6 +67,15 @@ public class ReceiverController: Controller
         var userId = _idGetter.GetId(User);
         mMessage.UserId = userId;
         await _message.UpdateMessage(mMessage);
+        return Ok();
+    }
+
+    [HttpPut("task")]
+    public async Task<IActionResult> UpdateTask(GenerateTask task)
+    {
+        var userId = _idGetter.GetId(User);
+        task.AccountId = userId;
+        await _task.UpdateOrInsertTask(task);
         return Ok();
     }
 
@@ -74,5 +95,11 @@ public class ReceiverController: Controller
         return Ok();
     }
 
-
+    [HttpDelete("task/{taskId}")]
+    public async Task<IActionResult> DeleteTask(string taskDataId)
+    {
+        var userId = _idGetter.GetId(User);
+        await _task.DeleteTaskByTaskId(taskDataId, userId);
+        return Ok();
+    }
 }
