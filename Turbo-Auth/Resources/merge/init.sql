@@ -137,20 +137,6 @@ create table FileAdds
 create index IX_FileAdds_ChatMessageId
     on FileAdds (ChatMessageId);
 
-
-
-# models
-create table NovitaModels
-(
-    ModelId int auto_increment
-        primary key,
-    Model   longtext   null,
-    Cover   longtext   null,
-    Type    longtext   null,
-    Nsfw    tinyint(1) not null,
-    Sdxl    tinyint(1) not null
-);
-
 # tasks
 create table GenerateTasks
 (

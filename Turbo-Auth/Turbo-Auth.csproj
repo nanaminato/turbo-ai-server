@@ -35,8 +35,6 @@
 
     <ItemGroup>
       <Folder Include="Migrations\" />
-      <Folder Include="Models\Ai\Image\Response\Normal\Extra\" />
-      <Folder Include="Models\Ai\Media\TTS\" />
       <Folder Include="Resources\uploads\" />
       <Folder Include="wwwroot\" />
     </ItemGroup>
@@ -54,18 +52,33 @@
 
     <ItemGroup>
       <Compile Remove="Entities\**" />
+      <Compile Remove="Controllers\Ai\VideoController.cs" />
+      <Compile Remove="Models\Ai\Image\Response\Lcm\**" />
+      <Compile Remove="Models\Ai\Image\Response\NovitaTask\**" />
+      <Compile Remove="Models\Ai\Image\MetaData.cs" />
+      <Compile Remove="Models\Ai\Image\Novita.cs" />
+      <Compile Remove="Controllers\Ai\APIMart\Models\Response\APIMartTask\**" />
     </ItemGroup>
 
     <ItemGroup>
       <EmbeddedResource Remove="Entities\**" />
+      <EmbeddedResource Remove="Models\Ai\Image\Response\Lcm\**" />
+      <EmbeddedResource Remove="Models\Ai\Image\Response\NovitaTask\**" />
+      <EmbeddedResource Remove="Controllers\Ai\APIMart\Models\Response\APIMartTask\**" />
     </ItemGroup>
 
     <ItemGroup>
       <Content Remove="Entities\**" />
+      <Content Remove="Models\Ai\Image\Response\Lcm\**" />
+      <Content Remove="Models\Ai\Image\Response\NovitaTask\**" />
+      <Content Remove="Controllers\Ai\APIMart\Models\Response\APIMartTask\**" />
     </ItemGroup>
 
     <ItemGroup>
       <None Remove="Entities\**" />
+      <None Remove="Models\Ai\Image\Response\Lcm\**" />
+      <None Remove="Models\Ai\Image\Response\NovitaTask\**" />
+      <None Remove="Controllers\Ai\APIMart\Models\Response\APIMartTask\**" />
     </ItemGroup>
 
 </Project>

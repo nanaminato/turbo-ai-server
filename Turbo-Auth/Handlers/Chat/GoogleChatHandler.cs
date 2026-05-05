@@ -5,6 +5,7 @@ using DotnetGeminiSDK.Model;
 using DotnetGeminiSDK.Model.Request;
 using DotnetGeminiSDK.Requester;
 using Newtonsoft.Json;
+using Turbo_Auth.Controllers.Ai.Chat.Models;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Ai.Chat;
 using Part = DotnetGeminiSDK.Model.Request.Part;

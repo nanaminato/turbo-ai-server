@@ -1,6 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Turbo_Auth.Models.Accounts;
-using Turbo_Auth.Models.Ai.Media;
 using Turbo_Auth.Models.Suppliers;
 
 namespace Turbo_Auth.Context;
@@ -34,7 +32,6 @@ public partial class KeyContext : DbContext
         modelBuilder.Entity<ModelKeyBind>().ToTable("ModelKeyBinds");
         modelBuilder.Entity<Model>().ToTable("Models");
         modelBuilder.Entity<AvailableModel>().ToTable("AvailableModels");
-        modelBuilder.Entity<NovitaModel>().ToTable("NovitaModels");
 
     }
 
@@ -57,11 +54,6 @@ public partial class KeyContext : DbContext
     }
 
     public DbSet<AvailableModel>? AvailableModels
-    {
-        get;
-        set;
-    }
-    public DbSet<NovitaModel>? NovitaModels
     {
         get;
         set;

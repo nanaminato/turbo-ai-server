@@ -2,6 +2,7 @@
 using Betalgo.Ranul.OpenAI.Managers;
 using Betalgo.Ranul.OpenAI.ObjectModels.RequestModels;
 using Newtonsoft.Json;
+using Turbo_Auth.Controllers.Ai.Chat.Models;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Ai.Chat;
 

@@ -1,5 +1,6 @@
 ﻿using Anthropic.SDK;
 using Anthropic.SDK.Messaging;
+using Turbo_Auth.Controllers.Ai.Chat.Models;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Ai;
 using Turbo_Auth.Models.Ai.Chat;
@@ -36,7 +37,7 @@ public class AnthropicChatHandler: IChatHandler
         }
     }
 
-    private static List<Message> TransferObject(IEnumerable<Models.Ai.Chat.Message> messages)
+    private static List<Message> TransferObject(IEnumerable<Controllers.Ai.Chat.Models.Message> messages)
     {
         var ms = new List<Message>();
         foreach (var message in messages)
