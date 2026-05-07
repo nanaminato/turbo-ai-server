@@ -96,10 +96,10 @@ public class ReceiverController: Controller
     }
 
     [HttpDelete("task/{taskId}")]
-    public async Task<IActionResult> DeleteTask(string taskDataId)
+    public async Task<IActionResult> DeleteTask(string taskId)
     {
         var userId = _idGetter.GetId(User);
-        await _task.DeleteTaskByTaskId(taskDataId, userId);
+        await _task.DeleteTaskByTaskId(taskId, userId);
         return Ok();
     }
 }
