@@ -46,7 +46,6 @@ public class ModelKeyBuilder: IModelKeyBuilder
         return new()
         {
             Quick = quick,
-            NovitaKeys = novitaKeys,
             ApiMartKeys = apiMartKeys
         };
     }

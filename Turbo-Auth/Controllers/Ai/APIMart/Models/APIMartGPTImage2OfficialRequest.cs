@@ -18,12 +18,13 @@ public class APIMartGPTImage2OfficialRequest
         get;
         set;
     }
+    [JsonProperty("size")]
     public string? Size
     {
         get;
         set;
     } = "1:1";
-
+    [JsonProperty("resolution")]
     public string? Resolution
     {
         get;
@@ -41,8 +42,7 @@ public class APIMartGPTImage2OfficialRequest
         get;
         set;
     }
-   
-
+    
     [JsonProperty("moderation")]
     public string? Moderation
     {

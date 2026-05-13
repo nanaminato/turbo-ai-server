@@ -5,14 +5,7 @@ namespace Turbo_Auth.Handlers.Model2Key;
 public class QuickModel
 {
     private Dictionary<string, List<WeightKey>> _quick = new();
-    private List<SupplierKey> _novitaKeys = new();
     private List<SupplierKey> _apiMartKeys = new();
-
-    public SupplierKey GetNovitaKey()
-    {
-        var rand = new Random();
-        return _novitaKeys[rand.Next(_novitaKeys.Count)];
-    }
 
     public SupplierKey? GetApiMartKey()
     {
@@ -22,12 +15,6 @@ public class QuickModel
         }
         var rand = new Random();
         return _apiMartKeys[rand.Next(_apiMartKeys.Count)];
-    }
-
-    public List<SupplierKey>? NovitaKeys
-    {
-        get;
-        set;
     }
 
     public List<SupplierKey>? ApiMartKeys
@@ -137,17 +124,11 @@ public class QuickModel
     public void Transfer(QuickModel quickModel)
     {
         _quick.Clear();
-        _novitaKeys.Clear();
         _apiMartKeys.Clear();
 
         foreach (var (key, value) in quickModel.Quick)
         {
             _quick.Add(key,value);
-        }
-        if(quickModel.NovitaKeys==null) return;
-        foreach (var key in quickModel.NovitaKeys!)
-        {
-            _novitaKeys.Add(key);
         }
 
         if (quickModel.ApiMartKeys == null) return;
