@@ -47,6 +47,7 @@ public class APIMartGPTTaskController: Controller
     private readonly IHttpClientFactory _httpClientFactory;
 
     [HttpGet("f/image/{*image_id}")]
+    [ResponseCache(Duration = 2592000, Location = ResponseCacheLocation.Any)]
     public async Task<IActionResult> GetImage(string image_id)
     {
         if (string.IsNullOrEmpty(image_id)) return BadRequest();
@@ -60,7 +61,10 @@ public class APIMartGPTTaskController: Controller
         {
             // 解析缓存数据 (我们采用：前100字节存 ContentType，后面存图片内容)
             var (contentType, imageBytes) = UnpackCache(cachedData);
-            SetBrowserCacheHeader();
+            var etag = $"\"{image_id}\""; 
+            if (Request.Headers.IfNoneMatch == etag) return StatusCode(304);
+
+            Response.Headers.ETag = etag;
             return File(imageBytes, contentType);
         }
 
@@ -85,21 +89,16 @@ public class APIMartGPTTaskController: Controller
             };
 
             await _cache.SetAsync(cacheKey, dataToCache, cacheOptions);
+            var etag = $"\"{image_id}\""; 
+            if (Request.Headers.IfNoneMatch == etag) return StatusCode(304);
 
-            // 4. 返回结果
-            SetBrowserCacheHeader();
+            Response.Headers.ETag = etag;
             return File(imageBytes, contentType);
         }
         catch (Exception)
         {
             return StatusCode(502);
         }
-    }
-
-    private void SetBrowserCacheHeader()
-    {
-        // 同时也给浏览器下达缓存指令，减少对后端的请求
-        Response.Headers.Append("Cache-Control", "public,max-age=2592000"); // 30天
     }
 
     // --- 辅助方法：处理 IDistributedCache 只能存 byte[] 的限制 ---
