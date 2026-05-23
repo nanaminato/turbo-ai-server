@@ -99,7 +99,7 @@ public class APIMartGPTTaskController: Controller
     private void SetBrowserCacheHeader()
     {
         // 同时也给浏览器下达缓存指令，减少对后端的请求
-        Response.Headers.Add("Cache-Control", "public,max-age=2592000"); // 30天
+        Response.Headers.Append("Cache-Control", "public,max-age=2592000"); // 30天
     }
 
     // --- 辅助方法：处理 IDistributedCache 只能存 byte[] 的限制 ---
