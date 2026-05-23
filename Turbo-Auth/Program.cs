@@ -65,6 +65,8 @@ builder.Services.AddDbContext<KeyContext>(
 // {
 //     options.ApiKey = "AIzaSyDW98j3Qe1nXWCq-6wGxAQfIZKCpD7zpa4";
 // });
+builder.Services.AddMemoryCache(); // 添加内存缓存支持
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<IIdGetter, IdGetter>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<IAccountRoleRepository,AccountRoleRepository>();
@@ -86,6 +88,7 @@ builder.Services.AddScoped<IModelKeyBuilder, ModelKeyBuilder>();
 builder.Services.AddScoped<IChatHandlerObtain, ChatHandlerObtain>();
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
 
+builder.Services.AddHttpClient();
 
 var jswSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
 var secretKey = Encoding.UTF8.GetBytes(jswSettings!.SecretKey!);
@@ -119,13 +122,24 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("user", policy => policy.RequireRole(["user"]));
     options.AddPolicy("vip", policy => policy.RequireRole(["vip"]));
 });
+var redisConnection = builder.Configuration.GetConnectionString("Redis");
+if (builder.Environment.IsDevelopment() || string.IsNullOrEmpty(redisConnection))
+{
+    // 开发环境或没配 Redis 时，使用本地内存模拟
+    builder.Services.AddDistributedMemoryCache();
+}
+else
+{
+    // 生产环境使用 Redis
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = redisConnection;
+        options.InstanceName = "ApiProxy_";
+    });
+}
+
 var app = builder.Build();
 app.UseCors("CorsPolicy");
-
-// if (!app.Environment.IsDevelopment())
-// {
-//     app.UseHsts();
-// }
 
 if (app.Environment.IsDevelopment())
 {
