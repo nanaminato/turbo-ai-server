@@ -1,4 +1,4 @@
-﻿using Turbo_Auth.Handlers.Differentiator;
+﻿using Turbo_Auth.Controllers.ApiAssets;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Suppliers;
 
@@ -40,9 +40,9 @@ public class ModelKeyBuilder: IModelKeyBuilder
                     SupplierKey = mkb.SupplierKey
                 }).ToList()
             );
-        var novitaKeys = supplierKeys.Where(s => s.RequestIdentifier == (int)HandlerType.Novita)
+        var apiMartKeys = supplierKeys.
+            Where(s => s.RequestIdentifier== KeyController.ApiMartRequestIdentifier)
             .ToList();
-        var apiMartKeys = supplierKeys.Where(s => s.BaseUrl!.Contains("apimart")).ToList();
         return new()
         {
             Quick = quick,
