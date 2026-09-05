@@ -1,29 +1,36 @@
-﻿# 服务端
-### 下载代码和环境
-首先下载本项目代码  
-然后安装对应的nuget包
-### 创建数据库
-导航到/Turbo-Auth/appsettings.Development.json
-创建测试的数据库名  
-然后导航到/Turbo-Auth/Resources/merge/  
-在数据库管理软件中连接刚创建的数据库，然后分别执行
-init.sql和open-initdata.sql。这样数据库中就具备了基本的数据，
-额外的数据可以通过系统的管理端进行管理。  
-然后可以构建项目并启动测试
+# 开发与测试
 
-# 用户端，管理端
-下载代码之后，使用npm进行安装依赖包，在此之前首先安装Angular CLI工具。
-然后直接启动项目即可
+## 本地开发
 
-### 启动的配置
-在分离部署或者测试的时候，前端通过一个一个指定的top链接连接后端服务。
-比如  
-https://turboai.cloud  
-这个链接在src/assets/config.json中改变  
+1. 安装 `global.json` 指定的 .NET SDK。
+2. 从 `Turbo-Auth/appsettings.example.json` 创建 `appsettings.Development.json`，并填写本地 MySQL、JWT 和 CORS 配置。
+3. 创建空 MySQL 数据库，执行 `Turbo-Auth/Resources/merge/init.sql` 和 `open-initdata.sql`。
+4. 恢复、构建并启动：
+
+```bash
+dotnet restore
+dotnet build Turbo-Auth.sln --configuration Release --no-restore
+dotnet run --project Turbo-Auth --launch-profile http
+```
+
+开发环境会启用 Swagger，可在服务监听地址的 `/swagger` 检查接口定义。
+
+## 自动化测试
+
+```bash
+dotnet test Turbo-Auth.sln --configuration Release --nologo
+```
+
+测试项目是 `Turbo-Kit-Test`，覆盖文档提取与账户密码处理。测试应使用临时文件与本地 fixture，不能依赖开发者机器中的绝对路径、真实数据库或供应商密钥。
+
+## 前端联调
+
+用户端与管理端分别在其仓库构建。若它们不与服务同源部署，在各自 `assets/config.json` 中设置：
+
 ```json
 {
-  "apiUrl": "https://localhost:44301/"
+  "apiUrl": "https://api.example.com/"
 }
-
 ```
-在本地测试时，修改后端服务对应的端口号即可。
+
+该地址必须同时出现在后端 `Cors:AllowedOrigins` 中。联调时至少验证登录、模型读取、流式聊天和密钥池刷新。

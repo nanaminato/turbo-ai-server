@@ -1,47 +1,69 @@
-# 部署
+# 部署与配置
 
-## 安全配置（必需）
+## 前置条件
 
-仓库中的 `Turbo-Auth/appsettings.json` 不包含可运行凭据。部署时请通过环境专用配置、密钥存储或环境变量提供以下值，且不要将真实值提交到仓库：
+- .NET SDK 10（版本由 `global.json` 固定）。
+- MySQL 8.4 或兼容版本。
+- 生产环境可选 Redis；未设置 `ConnectionStrings:Redis` 时服务使用进程内缓存。
 
-```bash
-ConnectionStrings__ciko='server=...;port=3306;database=...;user=...;password=...;Charset=utf8mb4'
-ConnectionStrings__Redis='redis-host:6379'
-Jwt__Issuer='turbo-ai-server'
-Jwt__Audience='turbo-ai-client'
-Jwt__SecretKey='a-long-random-secret'
-Cors__AllowedOrigins__0='https://app.example.com'
-Cors__AllowedOrigins__1='https://admin.example.com'
+## 数据库初始化
+
+创建空数据库后，按顺序执行以下脚本：
+
+```text
+Turbo-Auth/Resources/merge/init.sql
+Turbo-Auth/Resources/merge/open-initdata.sql
 ```
 
-生产环境必须列出精确的前端来源；未配置来源时，服务不会允许任何跨域请求。`Diagnostics:EnableSensitiveDataLogging` 仅可在本地排障时临时启用，生产环境必须保持 `false`。如历史配置曾包含真实凭据，请在部署前于对应服务中完成轮换。
+若从旧版数据库升级账户密码列，请先备份数据库，再执行 `Turbo-Auth/Resources/account/upgrade-password-column.sql`。旧明文密码会在用户下次成功登录时被替换为哈希。
 
-密码哈希上线前，先在已备份的数据库上执行 `Turbo-Auth/Resources/account/upgrade-password-column.sql`。应用会在旧明文密码首次成功登录时自动升级为哈希；在所有活跃账户完成迁移前，请保留数据库备份和回滚窗口。
+## 配置服务
 
-## 服务端
-
-在部署和测试之前：
-
-1. 观察并复制 `Turbo-Auth/appsettings.example.json`，创建环境专用配置。
-2. 创建对应的数据库。
-3. 执行 `Turbo-Auth/Resources/merge` 下的初始化数据脚本：`init.sql` 和 `open-initdata.sql`。
-
-数据库准备完毕后，在 Visual Studio 或命令行执行发布构建，再启动服务。Linux 服务器应通过反向代理终止 TLS 并按实际环境配置路由。
-
-## 用户端与管理端
-
-- 用户端：https://github.com/nanaminato/turbo-user
-- 管理端：https://github.com/nanaminato/turboai-admin
-
-在对应前端项目根目录执行：
+以 `Turbo-Auth/appsettings.example.json` 为模板创建环境专用配置。不要提交该文件或真实凭据。生产环境推荐使用环境变量或密钥存储：
 
 ```bash
-ng build
+export ConnectionStrings__ciko='server=db;port=3306;database=turboai;user=turboai;password=replace-me;Charset=utf8mb4'
+export ConnectionStrings__Redis='redis:6379'
+export Jwt__Issuer='turbo-ai-server'
+export Jwt__Audience='turbo-ai-client'
+export Jwt__SecretKey='a-long-random-secret'
+export Cors__AllowedOrigins__0='https://app.example.com'
+export Cors__AllowedOrigins__1='https://admin.example.com'
 ```
 
-将 `turbo-user` 的构建产物放到 `Turbo-Auth/wwwroot/ai`，将 `turboai-admin` 的构建产物放到 `Turbo-Auth/wwwroot/admin`。部署后访问：
+必须配置 `ConnectionStrings:ciko`、`Jwt:Issuer`、`Jwt:Audience` 与 `Jwt:SecretKey`；缺少这些值时应用会拒绝启动。`Cors:AllowedOrigins` 需要填写前端实际来源（协议、域名和端口）。`Diagnostics:EnableSensitiveDataLogging` 仅能在本地开发时临时设为 `true`。
 
-- `host:8000/ai`：用户端
-- `host:8000/admin`：管理端
+## 构建与运行
 
-根路径默认没有页面；如需跳转，可在 `wwwroot` 添加 `index.html`。
+```bash
+dotnet restore
+dotnet publish Turbo-Auth/Turbo-Auth.csproj --configuration Release --output ./publish
+ASPNETCORE_ENVIRONMENT=Production dotnet ./publish/Turbo-Auth.dll
+```
+
+示例配置中的 Kestrel 监听 `0.0.0.0:6000`。在生产环境使用反向代理终止 TLS，并将代理来源加入 CORS 白名单。Swagger 仅在 `Development` 环境注册，不应默认公开到生产网络。
+
+## 部署前端
+
+用户端和管理端为独立项目：
+
+- 用户端：[turbo-user](https://github.com/nanaminato/turbo-user)
+- 管理端：[turboai-admin](https://github.com/nanaminato/turboai-admin)
+
+在各自项目中构建后，将产物分别放到：
+
+```text
+Turbo-Auth/wwwroot/ai
+Turbo-Auth/wwwroot/admin
+```
+
+服务会把 `/ai/*` 和 `/admin/*` 回退到对应的单页应用入口。若前端和后端分开部署，在前端的 `assets/config.json` 中将 `apiUrl` 设置为后端公开地址；同源部署时使用空值。
+
+## 配置模型和密钥
+
+1. 使用管理员账户登录，取得 JWT。
+2. 通过 `GET /api/key/types` 选择供应商类型编号。
+3. 创建启用的供应商密钥和模型，并添加它们的关联。
+4. 调用 `POST /api/sync/loadKeys`，使更改立即进入内存密钥池。
+
+详见 [API 使用](WhatCanIDo.md)。

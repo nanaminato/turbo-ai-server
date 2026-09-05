@@ -11,7 +11,7 @@ create table Accounts
     AccountId int auto_increment
         primary key,
     Username  varchar(20) not null,
-    Password  varchar(20) not null,
+    Password  varchar(512) not null,
     Email     varchar(50) not null
 );
 
