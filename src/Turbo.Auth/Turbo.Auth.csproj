@@ -9,7 +9,7 @@
 
     <ItemGroup>
         
-        <PackageReference Include="Betalgo.Ranul.OpenAI" Version="9.2.6" />
+        <PackageReference Include="tryAGI.OpenAI" Version="4.2.10" />
         
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
         <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.11" />
