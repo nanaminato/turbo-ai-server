@@ -2,10 +2,11 @@
 
 public enum HandlerType
 {
-    Openai,//0
+    Openai,
     Google,
     Anthropic,
     Novita,
     Alibaba,
-    Twitter
+    Twitter,
+    ApiMart
 }

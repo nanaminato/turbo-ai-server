@@ -3,6 +3,7 @@ using Betalgo.Ranul.OpenAI.Managers;
 using Betalgo.Ranul.OpenAI.ObjectModels.RequestModels;
 using Newtonsoft.Json;
 using Turbo_Auth.Controllers.Ai.Chat.Models;
+using Turbo_Auth.Handlers.Differentiator;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Ai.Chat;
 
@@ -10,8 +11,17 @@ namespace Turbo_Auth.Handlers.Chat;
 
 public class OpenAiChatHandler : IChatHandler
 {
-    
-    public async Task Chat(NoModelChatBody chatBody, ModelKey modelKey,HttpResponse response)
+    private readonly IHttpClientFactory _httpClientFactory;
+
+    public OpenAiChatHandler(IHttpClientFactory httpClientFactory)
+    {
+        _httpClientFactory = httpClientFactory;
+    }
+
+    public HandlerType ProviderType => HandlerType.Openai;
+
+    public async Task Chat(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response,
+        CancellationToken cancellationToken)
     {
         var url = modelKey.SupplierKey!.BaseUrl!.Trim();
         var uri = new Uri(url);
@@ -26,15 +36,14 @@ public class OpenAiChatHandler : IChatHandler
         };
         if (baseUrl.Contains("azure.com"))
         {
-            option.ProviderType = ProviderType.Azure;
+            option.ProviderType = Betalgo.Ranul.OpenAI.ProviderType.Azure;
             option.DeploymentId = "jp-ai";
         }
         if (!string.IsNullOrEmpty(subRoute))
         {
             option.ApiVersion = subRoute;
         }
-        var openAiService = new OpenAIService(option
-        );
+        var openAiService = new OpenAIService(option, _httpClientFactory.CreateClient("AiProvider"));
         
         var messages = TransferObject(chatBody.Messages!, chatBody.Vision);
         var completionResult = openAiService.ChatCompletion.CreateCompletionAsStream(new ChatCompletionCreateRequest
@@ -47,6 +56,7 @@ public class OpenAiChatHandler : IChatHandler
         });
         await foreach (var completion in completionResult)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (completion.Successful)
             {
                 if (completion.Choices.FirstOrDefault() == null) continue;
@@ -54,7 +64,7 @@ public class OpenAiChatHandler : IChatHandler
                 if (completion.Choices.FirstOrDefault()?.Message.Content == null) continue;
                 if (completion.Choices.FirstOrDefault()?.Message.Content!.Length > 0)
                 {
-                    await response.WriteAsync(completion.Choices.FirstOrDefault()?.Message.Content!);
+                    await response.WriteAsync(completion.Choices.FirstOrDefault()?.Message.Content!, cancellationToken);
                 }
             }
             else
@@ -64,7 +74,7 @@ public class OpenAiChatHandler : IChatHandler
                     throw new Exception("Unknown Error");
                 }
 
-                await response.WriteAsync($"{completion.Error.Code}: {completion.Error.Message}");
+                await response.WriteAsync($"{completion.Error.Code}: {completion.Error.Message}", cancellationToken);
             }
         }
 

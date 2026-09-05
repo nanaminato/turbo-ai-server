@@ -6,7 +6,10 @@ namespace Turbo_Auth.Handlers.Chat;
 
 public class TwitterChatHandler: IChatHandler
 {
-    public async Task Chat(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response)
+    public Handlers.Differentiator.HandlerType ProviderType => Handlers.Differentiator.HandlerType.Twitter;
+
+    public Task Chat(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response,
+        CancellationToken cancellationToken)
     {
         throw new NotImplementedException();
     }

@@ -1,6 +1,7 @@
 ﻿using Anthropic.SDK;
 using Anthropic.SDK.Messaging;
 using Turbo_Auth.Controllers.Ai.Chat.Models;
+using Turbo_Auth.Handlers.Differentiator;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Ai;
 using Turbo_Auth.Models.Ai.Chat;
@@ -10,7 +11,10 @@ namespace Turbo_Auth.Handlers.Chat;
 
 public class AnthropicChatHandler: IChatHandler
 {
-    public async Task Chat(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response)
+    public HandlerType ProviderType => HandlerType.Anthropic;
+
+    public async Task Chat(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response,
+        CancellationToken cancellationToken)
     {
         var client = new AnthropicClient(
             modelKey.SupplierKey!.ApiKey);
@@ -26,11 +30,12 @@ public class AnthropicChatHandler: IChatHandler
         };
         await foreach (var res in client.Messages.StreamClaudeMessageAsync(parameters))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (res.Delta != null)
             {
                 if (res.Delta.Text != null)
                 {
-                    await response.WriteAsync(res.Delta.Text);
+                    await response.WriteAsync(res.Delta.Text, cancellationToken);
                 }
                 
             }

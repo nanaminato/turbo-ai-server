@@ -9,7 +9,8 @@
 Turbo-Auth (ASP.NET Core)
  ├── Controllers：认证、管理、聊天、媒体、同步、文件提取
  ├── Repositories：账户、角色、模型、密钥、历史和任务的数据访问
- ├── KeyLoader + StableKeyPoolRepository：加载并选择可用的密钥/模型组合
+ ├── KeyLoader + StableKeyPoolRepository：构建并原子发布可用的密钥/模型路由快照
+ ├── Provider registry：按供应商类型解析已注册的聊天适配器
  ├── Chat handlers：OpenAI-compatible、Gemini、Anthropic、DashScope 等适配器
  └── Turbo-Kit：TXT、DOCX、PDF 文本提取
         │
@@ -23,8 +24,8 @@ Turbo-Auth (ASP.NET Core)
 ## 聊天请求路径
 
 1. 客户端以 Bearer JWT 调用 `POST /api/ai/chat`，并指定已配置的 `model`。
-2. `QuickModel` 从内存密钥池选择该模型可用的 `ModelKey`。
-3. `PlayMixModelBacker` 解析实际模型标识；`ChatHandlerObtain` 根据供应商类型选择适配器。
+2. `QuickModel` 从不可变的内存路由快照中，以费用权重选择该模型可用的 `ModelKey`。
+3. `PlayMixModelBacker` 解析实际模型标识；`ChatHandlerObtain` 从 DI 注册表按供应商类型选择适配器。
 4. 适配器调用上游 API，并把流式文本写回原始 HTTP 响应。
 
 模型和密钥的配置存放在 MySQL。每次变更后调用 `POST /api/sync/loadKeys` 刷新内存池，或重启服务使其重新加载。
@@ -38,4 +39,4 @@ Turbo-Auth (ASP.NET Core)
 
 ## 扩展供应商
 
-添加供应商时，先在 `HandlerType` 增加标识，再实现 `IChatHandler`，并在 `ChatHandlerObtain` 中映射它。管理端的密钥类型列表定义在 `KeyController`；最后通过管理接口创建 `SupplierKey`、`Model` 和关联记录。新适配器应支持取消、超时和不记录 API 密钥的结构化日志。
+添加供应商时，先在 `ProviderCatalog` 增加标识，再实现 `IChatHandler` 并在 `Program.cs` 注册。管理端的密钥类型列表也由该目录生成，无须维护第二份编号映射；最后通过管理接口创建 `SupplierKey`、`Model` 和关联记录。新适配器应支持取消、超时和不记录 API 密钥的结构化日志。

@@ -4,19 +4,20 @@ namespace Turbo_Auth.Handlers.Chat;
 
 public class ChatHandlerObtain: IChatHandlerObtain
 {
-    public ChatHandlerObtain()
+    private readonly IReadOnlyDictionary<HandlerType, IChatHandler> _handlers;
+
+    public ChatHandlerObtain(IEnumerable<IChatHandler> handlers)
     {
+        _handlers = handlers.ToDictionary(handler => handler.ProviderType);
     }
+
     public IChatHandler GetHandler(HandlerType handlerType)
     {
-        return handlerType switch
+        if (_handlers.TryGetValue(handlerType, out var handler))
         {
-            HandlerType.Google => new GoogleChatHandler(),
-            HandlerType.Openai => new OpenAiChatHandler(),
-            HandlerType.Anthropic => new AnthropicChatHandler(),
-            HandlerType.Alibaba => new AlibabaChatHandler(),
-            HandlerType.Twitter => new TwitterChatHandler(),
-            _ => new OpenAiChatHandler()
-        };
+            return handler;
+        }
+
+        throw new NotSupportedException($"Provider '{handlerType}' does not support chat requests.");
     }
 }

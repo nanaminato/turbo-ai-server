@@ -85,6 +85,10 @@ builder.Services.AddDbContext<KeyContext>(
 );
 builder.Services.AddMemoryCache(); // 添加内存缓存支持
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("AiProvider", client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(5);
+});
 builder.Services.AddScoped<IIdGetter, IdGetter>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<IAccountRoleRepository,AccountRoleRepository>();
@@ -103,6 +107,10 @@ builder.Services.AddScoped<IKeyPoolRepository, StableKeyPoolRepository>();
 builder.Services.AddSingleton<QuickModel>();
 builder.Services.AddSingleton<PlayMixModelBacker>();
 builder.Services.AddScoped<IModelKeyBuilder, ModelKeyBuilder>();
+builder.Services.AddScoped<IChatHandler, OpenAiChatHandler>();
+builder.Services.AddScoped<IChatHandler, GoogleChatHandler>();
+builder.Services.AddScoped<IChatHandler, AnthropicChatHandler>();
+builder.Services.AddScoped<IChatHandler, AlibabaChatHandler>();
 builder.Services.AddScoped<IChatHandlerObtain, ChatHandlerObtain>();
 builder.Services.AddSingleton<IAccountPasswordService, AccountPasswordService>();
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));

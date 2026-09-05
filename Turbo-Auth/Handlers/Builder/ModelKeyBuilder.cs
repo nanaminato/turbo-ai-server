@@ -30,18 +30,18 @@ public class ModelKeyBuilder: IModelKeyBuilder
 
         var quick = supplierKeys
             .SelectMany(sk => sk.ModelKeyBinds ?? Enumerable.Empty<ModelKeyBind>())
-            .Where(mkb => mkb.Enable && mkb.Model != null && models.Contains(mkb.Model.ModelValue!))
+            .Where(mkb => mkb.Enable && mkb.Model is { Enable: true } && models.Contains(mkb.Model.ModelValue!))
             .Where(mkb => !(mkb.Model!.ModelValue == "gpt-image-2" && mkb.SupplierKey!.BaseUrl!.Contains("apimart")))
             .GroupBy(mkb => mkb.Model!.ModelValue)
             .ToDictionary(
                 g => g.Key,
                 g => g.Select(mkb => new WeightKey {
-                    Weight = mkb.Fee != 0 ? 1 / mkb.Fee : 0,
+                    Weight = mkb.Fee > 0 ? 1 / mkb.Fee : 1,
                     SupplierKey = mkb.SupplierKey
                 }).ToList()
             );
         var apiMartKeys = supplierKeys.
-            Where(s => s.RequestIdentifier== KeyController.ApiMartRequestIdentifier)
+            Where(s => s.RequestIdentifier == (int)Handlers.Differentiator.HandlerType.ApiMart)
             .ToList();
         return new()
         {

@@ -37,11 +37,31 @@ public class ChatController: Controller
     {
         try
         {
-            var modelKey = _quickModel.GetModelAndKey(chatBody.Model!);
-            modelKey!.Model = _backer.Backer(modelKey.Model!);
+            if (string.IsNullOrWhiteSpace(chatBody.Model))
+            {
+                await WriteProblem(StatusCodes.Status400BadRequest, "必须指定 model。");
+                return;
+            }
+
+            var modelKey = _quickModel.GetModelAndKey(chatBody.Model);
+            modelKey.Model = _backer.Backer(modelKey.Model!);
             var handler = _chatHandlerObtain.GetHandler
-                ((HandlerType)modelKey!.SupplierKey!.RequestIdentifier);
-            await handler.Chat(chatBody,modelKey,Response);
+                ((HandlerType)modelKey.SupplierKey!.RequestIdentifier);
+            await handler.Chat(chatBody, modelKey, Response, HttpContext.RequestAborted);
+        }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogInformation("AI chat request cancelled. TraceId: {TraceId}", HttpContext.TraceIdentifier);
+        }
+        catch (KeyNotFoundException exception)
+        {
+            _logger.LogWarning(exception, "AI chat model is unavailable. TraceId: {TraceId}", HttpContext.TraceIdentifier);
+            await WriteProblem(StatusCodes.Status400BadRequest, "请求的模型当前不可用。");
+        }
+        catch (NotSupportedException exception)
+        {
+            _logger.LogWarning(exception, "AI chat provider is unsupported. TraceId: {TraceId}", HttpContext.TraceIdentifier);
+            await WriteProblem(StatusCodes.Status400BadRequest, "该模型的供应商暂不支持聊天。");
         }
         catch (Exception e)
         {
@@ -49,16 +69,26 @@ public class ChatController: Controller
                 "AI chat request failed. TraceId: {TraceId}; ExceptionType: {ExceptionType}",
                 HttpContext.TraceIdentifier,
                 e.GetType().Name);
-            Response.StatusCode = StatusCodes.Status500InternalServerError;
-            Response.ContentType = "application/problem+json";
-            await Response.WriteAsJsonAsync(new ProblemDetails
-            {
-                Status = StatusCodes.Status500InternalServerError,
-                Title = "AI 服务暂时不可用",
-                Instance = HttpContext.Request.Path
-            });
-            await Response.CompleteAsync();
+            await WriteProblem(StatusCodes.Status500InternalServerError, "AI 服务暂时不可用。");
         }
+    }
+
+    private async Task WriteProblem(int statusCode, string title)
+    {
+        if (Response.HasStarted)
+        {
+            return;
+        }
+
+        Response.StatusCode = statusCode;
+        Response.ContentType = "application/problem+json";
+        await Response.WriteAsJsonAsync(new ProblemDetails
+        {
+            Status = statusCode,
+            Title = title,
+            Instance = HttpContext.Request.Path
+        });
+        await Response.CompleteAsync();
     }
 
     [HttpGet("models")]
@@ -66,7 +96,9 @@ public class ChatController: Controller
     public async Task<List<ChatDisplayModel>> GetChatModels()
     {
         var models = await _modelRepository.GetChatModelsAsync();
-        return models!.Select(m=>new ChatDisplayModel()
+        return (models ?? [])
+            .Where(model => _quickModel.IsModelAvailable(model.ModelValue))
+            .Select(m=>new ChatDisplayModel()
         {
             ModelName = m.Name,
             ModelValue = m.ModelValue,

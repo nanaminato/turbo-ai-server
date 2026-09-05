@@ -6,16 +6,28 @@ using DotnetGeminiSDK.Model.Request;
 using DotnetGeminiSDK.Requester;
 using Newtonsoft.Json;
 using Turbo_Auth.Controllers.Ai.Chat.Models;
+using Turbo_Auth.Handlers.Differentiator;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Ai.Chat;
 using Part = DotnetGeminiSDK.Model.Request.Part;
 
 namespace Turbo_Auth.Handlers.Chat;
 
-[Obsolete]
 public class GoogleChatHandler : IChatHandler
 {
-    public async Task Chat(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response)
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILogger<ApiRequester> _apiRequesterLogger;
+
+    public GoogleChatHandler(IHttpClientFactory httpClientFactory, ILogger<ApiRequester> apiRequesterLogger)
+    {
+        _httpClientFactory = httpClientFactory;
+        _apiRequesterLogger = apiRequesterLogger;
+    }
+
+    public HandlerType ProviderType => HandlerType.Google;
+
+    public async Task Chat(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response,
+        CancellationToken cancellationToken)
     {
         var messages = TransferObject(chatBody.Messages, chatBody.Vision);
         var geminiClient = new GeminiClient(
@@ -23,11 +35,11 @@ public class GoogleChatHandler : IChatHandler
             {
                 ApiKey = modelKey.SupplierKey!.ApiKey!
             },
-            new ApiRequester()
+            new ApiRequester(_httpClientFactory, _apiRequesterLogger)
         );
         await geminiClient.StreamTextPrompt(messages, async (chunck) =>
         {
-            Console.WriteLine(chunck);
+            cancellationToken.ThrowIfCancellationRequested();
             chunck = FillBlock(chunck);
             var geminiParts = JsonConvert.DeserializeObject<GeminiPart[]>(chunck);
             if (geminiParts == null) return;
@@ -36,7 +48,7 @@ public class GoogleChatHandler : IChatHandler
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
                 if (block != null)
                 {
-                    await response.WriteAsync(block!.Candidates![0]!.Content.Parts[0].Text);
+                    await response.WriteAsync(block!.Candidates![0]!.Content.Parts[0].Text, cancellationToken);
                 }
             }
         });

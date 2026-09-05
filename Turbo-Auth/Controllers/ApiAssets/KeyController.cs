@@ -67,55 +67,16 @@ public class KeyController: Controller
             return BadRequest();
         }
     }
-    public static int OpenAiRequestIdentifier = 0;
-    public static int GoogleRequestIdentifier = 1;
-    public static int AnthropicRequestIdentifier = 2;
-    public static int NovitaRequestIdentifier = 3;
-    public static int AlibabaRequestIdentifier = 4;
-    public static int TwitterRequestIdentifier = 5;
-    public static int ApiMartRequestIdentifier = 6;
-    
     [HttpGet("types")]
     public IActionResult GetKeyTypes()
     {
-        var types = new List<KeyTypes>()
-        {
-            new()
+        var types = Handlers.Differentiator.ProviderCatalog.GetAll()
+            .Select(provider => new KeyTypes
             {
-                Type = "OpenAI",
-                RequestIdentifier = 0
-            },
-            new()
-            {
-                Type = "Google",
-                RequestIdentifier = 1
-            },
-            new()
-            {
-                Type = "Anthropic",
-                RequestIdentifier = 2
-            },
-            new ()
-            {
-                Type = "Novita",
-                RequestIdentifier = 3
-            },
-            new ()
-            {
-                Type = "Alibaba",
-                RequestIdentifier = 4
-            },
-            new ()
-            {
-                Type = "Twitter",
-                RequestIdentifier = 5
-            },
-            new ()
-            {
-                Type = "apiMart",
-                RequestIdentifier = 6
-            }
-        };
+                Type = provider.DisplayName,
+                RequestIdentifier = (int)provider.Type
+            })
+            .ToList();
         return Ok(types);
     }
 

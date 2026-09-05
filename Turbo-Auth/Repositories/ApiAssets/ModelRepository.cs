@@ -20,7 +20,9 @@ public class ModelRepository: IModelRepository
 
     public async Task<List<Model>?> GetChatModelsAsync()
     {
-        return await _keyContext.Models!.Where(m => m.IsChatModel == true).ToListAsync();
+        return await _keyContext.Models!
+            .Where(m => m.IsChatModel && m.Enable)
+            .ToListAsync();
     } 
 
     public async Task<List<Model>?> GetModelsOfKeyAsync(int keyId)

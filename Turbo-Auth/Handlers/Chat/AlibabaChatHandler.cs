@@ -1,6 +1,7 @@
 ﻿using DashScope;
 using DashScope.Models;
 using Turbo_Auth.Controllers.Ai.Chat.Models;
+using Turbo_Auth.Handlers.Differentiator;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Ai.Chat;
 using Message = DashScope.Models.Message;
@@ -9,16 +10,27 @@ namespace Turbo_Auth.Handlers.Chat;
 
 public class AlibabaChatHandler: IChatHandler
 {
-    public async Task Chat(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response)
+    private readonly IHttpClientFactory _httpClientFactory;
+
+    public AlibabaChatHandler(IHttpClientFactory httpClientFactory)
     {
-        var dScopeClient = new DashScopeClient(modelKey.SupplierKey!.ApiKey!, new HttpClient());
+        _httpClientFactory = httpClientFactory;
+    }
+
+    public HandlerType ProviderType => HandlerType.Alibaba;
+
+    public async Task Chat(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response,
+        CancellationToken cancellationToken)
+    {
+        var dScopeClient = new DashScopeClient(modelKey.SupplierKey!.ApiKey!, _httpClientFactory.CreateClient("AiProvider"));
         var request = new CompletionRequest();
         request.Model = modelKey.Model!;
         request.Input = ParseInput(chatBody);
         request.Parameters = ParseParameters(chatBody);
         await foreach (var res in dScopeClient.GenerationStreamAsync(request))
         {
-            await response.WriteAsync(res.Output.Choices![0].Message.Content);
+            cancellationToken.ThrowIfCancellationRequested();
+            await response.WriteAsync(res.Output.Choices![0].Message.Content, cancellationToken);
         }
 
         await response.CompleteAsync();

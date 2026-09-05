@@ -6,8 +6,7 @@ namespace Turbo_Auth.Handlers.keyPool;
 
 public class StableKeyPoolRepository: IKeyPoolRepository
 {
-    private List<SupplierKey> _supplierKeys
-        = [];
+    private IReadOnlyList<SupplierKey> _supplierKeys = Array.Empty<SupplierKey>();
 
     private QuickModel _quick;
     private IModelKeyBuilder _modelKeyBuilder;
@@ -19,13 +18,13 @@ public class StableKeyPoolRepository: IKeyPoolRepository
     
     public async Task Replace(List<SupplierKey> supplierKeys)
     {
-        _supplierKeys.Clear();
-        _supplierKeys.AddRange(supplierKeys);
-        var quickModel = await _modelKeyBuilder.Build(_supplierKeys);
-        _quick.Transfer(quickModel); // 维持单例，迁移构建的数据
+        var copiedKeys = supplierKeys.ToArray();
+        var quickModel = await _modelKeyBuilder.Build(copiedKeys.ToList());
+        _quick.Transfer(quickModel);
+        Volatile.Write(ref _supplierKeys, copiedKeys);
     }
 
-    public List<SupplierKey> SupplierKeys()
+    public IReadOnlyList<SupplierKey> SupplierKeys()
     {
         return _supplierKeys;
     }
