@@ -1,0 +1,60 @@
+# 架构
+
+## 组件
+
+```text
+浏览器 / 前端应用
+        │ HTTP + JWT / SignalR
+        ▼
+Turbo.Auth (ASP.NET Core)
+ ├── Controllers：认证、管理、聊天、媒体、同步、文件提取
+ ├── Repositories：账户、角色、模型、密钥、历史和任务的数据访问
+ ├── KeyLoader + StableKeyPoolRepository：构建并原子发布可用的密钥/模型路由快照
+ ├── Provider registry：按供应商类型解析已注册的聊天适配器
+ ├── Chat handlers：OpenAI-compatible、Gemini、Anthropic、DashScope 等适配器
+ └── Turbo.Kit：TXT、DOCX、PDF 文本提取
+        │
+        ├── MySQL：业务数据和供应商配置
+        ├── Redis：生产环境的分布式缓存（未配置时使用内存缓存）
+        └── 上游 AI API
+```
+
+`src/Turbo.Auth/Program.cs` 是组合根：它注册数据库上下文、认证授权、缓存、控制器和处理器，并在启动时调用 `IKeyLoader.LoadKeys()`。`src/Turbo.Kit` 是独立类库，供文件提取接口和测试项目共享。
+
+## 仓库布局
+
+```text
+src/
+├── Turbo.Auth/          ASP.NET Core 服务
+│   ├── Application/     聊天适配器、供应商目录和模型路由
+│   ├── Controllers/     HTTP 端点，按业务能力分组
+│   ├── Data/Contexts/   Entity Framework Core 上下文
+│   ├── Models/          领域实体与请求/响应模型
+│   └── Repositories/    数据访问实现
+└── Turbo.Kit/           文档文本提取类库
+tests/
+└── Turbo.Auth.Tests/    单元测试
+docs/                    架构、接口、部署和开发文档
+```
+
+## 聊天请求路径
+
+1. 客户端以 Bearer JWT 调用 `POST /api/ai/chat`，并指定已配置的 `model`。
+2. `QuickModel` 从不可变的内存路由快照中，先按 `Priority` 选择优先级最高的健康路由，再按费用权重选择 `ModelKey`。
+3. `PlayMixModelBacker` 解析实际模型标识；`ChatHandlerObtain` 从 DI 注册表按供应商类型选择适配器。
+4. 适配器调用上游 API，并把流式文本写回原始 HTTP 响应。
+
+逻辑模型、供应商密钥和路由配置存放在 MySQL。路由包含 `ProviderModelValue`（上游模型名）、`Priority` 和 `Fee`，因此同一个逻辑模型可映射到不同供应商的不同上游模型。每次变更后调用 `POST /api/sync/loadKeys` 刷新内存池，或重启服务使其重新加载。
+
+在请求尚未写出响应前，路由失败会被记录，并尝试同一逻辑模型的下一条健康路由。连续失败达到 `AiRouting:FailureThreshold` 后，该路由会熔断 `AiRouting:BreakDurationSeconds`；流式响应已经开始后不会切换路由，以免拼接两个供应商的输出。
+
+## 认证与权限
+
+- `POST /api/auth/login` 返回 JWT；除登录、注册、验证码和公开模型接口外，控制器均需要 JWT。
+- `admin` 可管理账户、角色、供应商密钥和模型。
+- `user` 可读取可用聊天模型；`vip` 可调用聊天和媒体接口。
+- CORS 仅允许 `Cors:AllowedOrigins` 配置中的绝对 URL。生产环境不要使用通配来源。
+
+## 扩展供应商
+
+添加供应商时，先在 `ProviderCatalog` 增加标识，再实现 `IChatHandler` 并在 `Program.cs` 注册。管理端的密钥类型列表也由该目录生成，无须维护第二份编号映射；最后通过管理接口创建 `SupplierKey`、`Model` 和关联记录。新适配器应支持取消、超时和不记录 API 密钥的结构化日志。
