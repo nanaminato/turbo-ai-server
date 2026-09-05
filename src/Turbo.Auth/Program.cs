@@ -49,6 +49,7 @@ if (args.Length == 1 && string.Equals(args[0], "--hash-password", StringComparis
 }
 
 var builder = WebApplication.CreateBuilder(args);
+var allowAnyCorsOrigin = builder.Environment.IsDevelopment();
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()?
     .Where(origin => Uri.TryCreate(origin, UriKind.Absolute, out _))
     .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -57,7 +58,15 @@ var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get
 builder.Services.AddCors(options => options.AddPolicy("CorsPolicy",
     set =>
     {
-        if (allowedOrigins.Length == 0)
+        if (allowAnyCorsOrigin)
+        {
+            // Browsers disallow combining a wildcard origin with credentials.
+            // Local development uses bearer tokens, so no credentialed CORS is needed.
+            set.AllowAnyOrigin()
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        }
+        else if (allowedOrigins.Length == 0)
         {
             set.SetIsOriginAllowed(_ => false);
         }
