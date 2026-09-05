@@ -33,6 +33,17 @@ public partial class AuthContext : DbContext
 
         OnModelCreatingPartial(modelBuilder);
         modelBuilder.Entity<Account>().ToTable("Accounts");
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.ToTable("RefreshTokens");
+            entity.HasIndex(token => token.TokenHash).IsUnique();
+            entity.HasIndex(token => new { token.AccountId, token.SessionId });
+            entity.HasIndex(token => token.ExpiresAt);
+            entity.HasOne(token => token.Account)
+                .WithMany()
+                .HasForeignKey(token => token.AccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
         modelBuilder.Entity<AccountRole>().ToTable("AccountRoles");
         modelBuilder.Entity<Role>().ToTable("Roles");
         modelBuilder.Entity<ChatHistory>().ToTable("ChatHistories");
@@ -69,6 +80,11 @@ public partial class AuthContext : DbContext
     }
 
     public DbSet<AccountRole>? AccountRoles
+    {
+        get;
+        set;
+    }
+    public DbSet<RefreshToken>? RefreshTokens
     {
         get;
         set;

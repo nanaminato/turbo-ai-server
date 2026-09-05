@@ -12,8 +12,31 @@ create table Accounts
         primary key,
     Username  varchar(20) not null,
     Password  varchar(512) not null,
+    SecurityStamp char(32) not null default '',
     Email     varchar(50) not null
 );
+
+create table RefreshTokens
+(
+    RefreshTokenId    char(36) not null primary key,
+    AccountId         int not null,
+    TokenHash         char(64) not null,
+    SessionId         char(36) not null,
+    CreatedAt         datetime(6) not null,
+    ExpiresAt         datetime(6) not null,
+    RevokedAt         datetime(6) null,
+    LastUsedAt        datetime(6) null,
+    ReplacedByTokenId char(36) null,
+    DeviceName        varchar(256) null,
+    CreatedByIp       varchar(64) null,
+    constraint FK_RefreshTokens_Accounts_AccountId
+        foreign key (AccountId) references Accounts (AccountId)
+            on delete cascade,
+    constraint UX_RefreshTokens_TokenHash unique (TokenHash)
+);
+
+create index IX_RefreshTokens_AccountId_SessionId on RefreshTokens (AccountId, SessionId);
+create index IX_RefreshTokens_ExpiresAt on RefreshTokens (ExpiresAt);
 
 create table Roles
 (

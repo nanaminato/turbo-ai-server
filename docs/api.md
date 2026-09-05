@@ -12,13 +12,21 @@ curl -X POST http://localhost:6000/api/auth/login \
   -d '{"username":"developer","password":"change-me"}'
 ```
 
-成功响应包含 `token` 和 `id`。在受保护接口中传入令牌：
+成功响应包含短效 `accessToken`（兼容字段 `token`）、`refreshToken`、`sessionId` 和 `id`。访问令牌默认有效 15 分钟；刷新令牌仅可用于轮换，服务端不保存明文。客户端应在收到 401 后调用 `POST /api/auth/refresh`，并以响应中的新刷新令牌覆盖旧值。在受保护接口中传入访问令牌：
 
 ```text
 Authorization: Bearer <token>
 ```
 
 `POST /api/auth/register` 接收 `email`、`username`、`password` 和 `confirm`。管理员也可以通过 `/api/account` 管理账户和角色。
+
+会话接口：
+
+- `POST /api/auth/refresh`：请求体为 `{ "refreshToken": "…", "deviceName": "…" }`，每次成功都会返回一对新令牌。
+- `POST /api/auth/logout`：传入刷新令牌，注销当前设备。
+- `POST /api/auth/logout-all`：注销当前账户的全部设备。
+- `GET /api/auth/sessions`、`DELETE /api/auth/sessions/{sessionId}`：查看或踢出某个设备会话。
+- `POST /api/account/change-password`：登录后传入 `currentPassword`、`newPassword`、`confirmPassword`；成功后会退出全部设备。
 
 ## 聊天
 

@@ -11,11 +11,13 @@ public class AccountRepository: IAccountRepository
 {
     private AuthContext _authContext;
     private readonly IAccountPasswordService _passwordService;
+    private readonly IAuthSessionService _sessions;
 
-    public AccountRepository(AuthContext authContext, IAccountPasswordService passwordService)
+    public AccountRepository(AuthContext authContext, IAccountPasswordService passwordService, IAuthSessionService sessions)
     {
         _authContext = authContext;
         _passwordService = passwordService;
+        _sessions = sessions;
     }
     public async Task AddUserAccountAsync(Account account)
     {
@@ -75,6 +77,9 @@ public class AccountRepository: IAccountRepository
                 await _authContext.AccountRoles!.AddAsync(accountRole);
                 await _authContext.SaveChangesAsync();
             }
+
+            // Password, username, and role claims have changed. Revoke every active device immediately.
+            await _sessions.InvalidateAllAsync(account.AccountId);
         }
         catch (Exception)
         {
@@ -116,6 +121,8 @@ public class AccountRepository: IAccountRepository
                 await _authContext.AccountRoles!.AddAsync(accountRole);
                 await _authContext.SaveChangesAsync();
             }
+
+            await _sessions.InvalidateAllAsync(account.AccountId);
         }
         catch (Exception)
         {

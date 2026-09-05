@@ -143,9 +143,20 @@ var jswSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>()
     ?? throw new InvalidOperationException("Jwt settings are required.");
 if (string.IsNullOrWhiteSpace(jswSettings.SecretKey) ||
     string.IsNullOrWhiteSpace(jswSettings.Issuer) ||
-    string.IsNullOrWhiteSpace(jswSettings.Audience))
+    string.IsNullOrWhiteSpace(jswSettings.Audience) ||
+    string.IsNullOrWhiteSpace(jswSettings.RefreshTokenPepper))
 {
-    throw new InvalidOperationException("Jwt:Issuer, Jwt:Audience, and Jwt:SecretKey must be configured through environment-specific configuration or a secret store.");
+    throw new InvalidOperationException("Jwt:Issuer, Jwt:Audience, Jwt:SecretKey, and Jwt:RefreshTokenPepper must be configured through environment-specific configuration or a secret store.");
+}
+
+if (jswSettings.AccessTokenMinutes is < 10 or > 15)
+{
+    throw new InvalidOperationException("Jwt:AccessTokenMinutes must be between 10 and 15.");
+}
+
+if (jswSettings.RefreshTokenDays is < 1 or > 30)
+{
+    throw new InvalidOperationException("Jwt:RefreshTokenDays must be between 1 and 30.");
 }
 
 var secretKey = Encoding.UTF8.GetBytes(jswSettings.SecretKey);
@@ -167,11 +178,34 @@ builder.Services.AddAuthentication(options =>
             ValidAudience = jswSettings.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(secretKey)
         };
-        options.Events = new JwtBearerEvents();
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var accountIdValue = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var securityStamp = context.Principal?.FindFirst("sv")?.Value;
+                var sessionIdValue = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.Sid)?.Value;
+                if (!int.TryParse(accountIdValue, out var accountId) ||
+                    string.IsNullOrWhiteSpace(securityStamp) ||
+                    !Guid.TryParse(sessionIdValue, out var sessionId))
+                {
+                    context.Fail("The access token does not contain a valid session.");
+                    return;
+                }
+
+                var sessions = context.HttpContext.RequestServices.GetRequiredService<IAuthSessionService>();
+                if (!await sessions.IsAccessTokenValidAsync(accountId, securityStamp, sessionId,
+                        context.HttpContext.RequestAborted))
+                {
+                    context.Fail("The session has been revoked.");
+                }
+            }
+        };
     });
 builder.Services.TryAddEnumerable(
     ServiceDescriptor.Singleton<IPostConfigureOptions<JwtBearerOptions>,
         ConfigureJwtBearerOptions>());
+builder.Services.AddScoped<IAuthSessionService, AuthSessionService>();
 
 builder.Services.AddAuthorization(options =>
 {

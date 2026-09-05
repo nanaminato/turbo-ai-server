@@ -15,7 +15,7 @@ src/Turbo.Auth/Resources/merge/init.sql
 src/Turbo.Auth/Resources/merge/open-initdata.sql
 ```
 
-初始化脚本仅面向空数据库，已包含当前应用所需的全部表、列和索引。现有数据库不提供增量升级脚本；请先备份数据，再重新创建数据库并按上述顺序初始化。
+初始化脚本仅面向空数据库，已包含当前应用所需的全部表、列和索引。已有数据库请先备份，再只执行一次 `src/Turbo.Auth/Resources/account/upgrade-auth-sessions.sql`；它会增加账户安全版本和刷新令牌会话表。
 
 初始化数据不会写入任何默认账户或明文密码。创建首个管理员（及后续需要通过 SQL 创建的用户）时：
 
@@ -35,11 +35,12 @@ export ConnectionStrings__Redis='redis:6379'
 export Jwt__Issuer='turbo-ai-server'
 export Jwt__Audience='turbo-ai-client'
 export Jwt__SecretKey='a-long-random-secret'
+export Jwt__RefreshTokenPepper='a-separate-long-random-secret'
 export Cors__AllowedOrigins__0='https://app.example.com'
 export Cors__AllowedOrigins__1='https://admin.example.com'
 ```
 
-必须配置 `ConnectionStrings:ciko`、`Jwt:Issuer`、`Jwt:Audience` 与 `Jwt:SecretKey`；缺少这些值时应用会拒绝启动。`Cors:AllowedOrigins` 需要填写前端实际来源（协议、域名和端口）。`Diagnostics:EnableSensitiveDataLogging` 仅能在本地开发时临时设为 `true`。
+必须配置 `ConnectionStrings:ciko`、`Jwt:Issuer`、`Jwt:Audience`、`Jwt:SecretKey` 与独立的 `Jwt:RefreshTokenPepper`；缺少这些值时应用会拒绝启动。`Jwt:AccessTokenMinutes` 只能设为 10–15，`Jwt:RefreshTokenDays` 为 1–30。生产环境配置 Redis 后，账户安全版本和会话状态会共享缓存，以避免每次 API 请求访问 MySQL。`Cors:AllowedOrigins` 需要填写前端实际来源（协议、域名和端口）。`Diagnostics:EnableSensitiveDataLogging` 仅能在本地开发时临时设为 `true`。
 
 `AiRouting:FailureThreshold` 指连续失败多少次后短暂熔断某一路由，`AiRouting:BreakDurationSeconds` 指熔断持续时间。默认值为 3 次和 60 秒；健康状态仅保存在进程内，重启后清空。
 

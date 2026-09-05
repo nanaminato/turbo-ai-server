@@ -12,6 +12,9 @@ public class Account
     [Required]
     [MaxLength(512)]
     public string? Password { get; set; }
+    [Required]
+    [MaxLength(64)]
+    public string SecurityStamp { get; set; } = Guid.NewGuid().ToString("N");
     [MaxLength(50)]
     [Required]
     public string? Email { get; set; }

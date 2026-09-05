@@ -2,15 +2,19 @@
 using Turbo.Auth.Data.Contexts;
 using Turbo.Auth.Exceptions;
 using Turbo.Auth.Models.Accounts;
+using Turbo.Auth.Security;
 
 namespace Turbo.Auth.Repositories.Accounts;
 
 public class RoleRepository: IRoleRepository
 {
     private AuthContext _authContext;
-    public RoleRepository(AuthContext authContext)
+    private readonly IAuthSessionService _sessions;
+
+    public RoleRepository(AuthContext authContext, IAuthSessionService sessions)
     {
         _authContext = authContext;
+        _sessions = sessions;
     }
     public async Task<List<Role>> GetRolesAsync()
     {
@@ -34,10 +38,15 @@ public class RoleRepository: IRoleRepository
         {
             var accountRoles = await _authContext.AccountRoles!
                 .Where(a => a.RoleId == id).ToListAsync();
+            var affectedAccountIds = accountRoles.Select(accountRole => accountRole.AccountId).Distinct().ToList();
             _authContext.AccountRoles!.RemoveRange(accountRoles);
             await _authContext.SaveChangesAsync();
             _authContext.Roles!.Remove(role);
             await _authContext.SaveChangesAsync();
+            foreach (var accountId in affectedAccountIds)
+            {
+                await _sessions.InvalidateAllAsync(accountId);
+            }
         }
     }
 
@@ -65,7 +74,16 @@ public class RoleRepository: IRoleRepository
             throw new EntityNotFoundException();
         }
 
+        var affectedAccountIds = await _authContext.AccountRoles!
+            .Where(accountRole => accountRole.RoleId == role.RoleId)
+            .Select(accountRole => accountRole.AccountId)
+            .Distinct()
+            .ToListAsync();
         r.Name = role.Name;
         await _authContext.SaveChangesAsync();
+        foreach (var accountId in affectedAccountIds)
+        {
+            await _sessions.InvalidateAllAsync(accountId);
+        }
     }
 }

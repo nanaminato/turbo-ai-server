@@ -6,7 +6,7 @@ MySqL数据库。（你可以修改这些内容，只需要你的数据库和这
 本地测试环境（windows下MySQL不区分大小写）。  
 你可以使用 merge/init.sql 在空数据库中创建当前应用所需的全部数据表。
 然后使用merge/open-initdata.sql来填充一些数据，这是必须的。这将主要添加一些模型和身份。
-初始化不会创建默认账户。需要通过 SQL 创建用户时，先在交互式终端运行 `dotnet run --project src/Turbo.Auth/Turbo.Auth.csproj -- --hash-password` 生成密码哈希，再将哈希填入 `account/input.sql` 并执行；首个管理员还需按该文件末尾的注释分配 `admin` 和 `vip` 角色。现有数据库不提供增量升级脚本；请先备份后重新创建数据库，再执行这两个脚本。
+初始化不会创建默认账户。需要通过 SQL 创建用户时，先在交互式终端运行 `dotnet run --project src/Turbo.Auth/Turbo.Auth.csproj -- --hash-password` 生成密码哈希，再将哈希填入 `account/input.sql` 并执行；首个管理员还需按该文件末尾的注释分配 `admin` 和 `vip` 角色。已有数据库升级登录体系时，请先备份并只执行一次 `account/upgrade-auth-sessions.sql`。
 既然到这了，你需要注意下面的东西
 
 在开发环境和产品环境，Jwt用于验证用户的身份，由于项目是开源的，如果你不
@@ -21,9 +21,5 @@ Token。
   },
 ```
 
-在Controller/Auth/AuthController GenerateToken 中
-可以找到expires: DateTime.Now.AddDays(30),
-这表明Token将会在30天才会过期，即使本项目包含vip设定，但是如果一个不重新登录，
-它的token将会持续30天有效，可以适当更改这个Token的有效期，本项目目前并不适合作为
-商业项目，自己部署用于一定数量的朋友或者同事是比较合适的。
+访问令牌默认仅有效 15 分钟；刷新令牌默认有效 30 天，服务端仅保存其带 pepper 的 HMAC 哈希，并在每次刷新时轮换。改密码、账户或角色权限变更会更新账户安全版本并撤销全部设备会话。
 

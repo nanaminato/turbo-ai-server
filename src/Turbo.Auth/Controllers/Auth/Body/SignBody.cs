@@ -10,4 +10,7 @@ public class SignBody
 
     [JsonProperty("password")]
     public string? Password { get; set; }
+
+    [JsonProperty("deviceName")]
+    public string? DeviceName { get; set; }
 }
