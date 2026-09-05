@@ -21,7 +21,7 @@ dotnet run --project Turbo-Auth --launch-profile http
 dotnet test Turbo-Auth.sln --configuration Release --nologo
 ```
 
-测试项目是 `Turbo-Kit-Test`，覆盖文档提取与账户密码处理。测试应使用临时文件与本地 fixture，不能依赖开发者机器中的绝对路径、真实数据库或供应商密钥。
+测试项目是 `Turbo-Kit-Test`，覆盖文档提取、账户密码处理，以及模型路由的快照发布、供应商模型映射、优先级与熔断逻辑。测试应使用临时文件与本地 fixture，不能依赖开发者机器中的绝对路径、真实数据库或供应商密钥。
 
 ## 前端联调
 

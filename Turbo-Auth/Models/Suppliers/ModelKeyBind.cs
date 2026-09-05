@@ -42,8 +42,22 @@ public class ModelKeyBind
         get;
         set;
     }
+
+    [MaxLength(200)]
+    public string ProviderModelValue
+    {
+        get;
+        set;
+    } = string.Empty;
+
+    public int Priority
+    {
+        get;
+        set;
+    }
+
     public override string ToString()
     {
-        return $"ModelKeyBindId: {ModelKeyBindId}, Enable: {Enable}, SupplierKeyId: {SupplierKeyId}, ModelId: {ModelId}, Model: {Model}, Fee: {Fee}";
+        return $"ModelKeyBindId: {ModelKeyBindId}, Enable: {Enable}, SupplierKeyId: {SupplierKeyId}, ModelId: {ModelId}, ProviderModelValue: {ProviderModelValue}, Priority: {Priority}, Fee: {Fee}";
     }
 }

@@ -4,6 +4,24 @@ namespace Turbo_Auth.Handlers.Model2Key;
 
 public class WeightKey
 {
+    public int RouteId
+    {
+        get;
+        set;
+    }
+
+    public int Priority
+    {
+        get;
+        set;
+    }
+
+    public string? ProviderModelValue
+    {
+        get;
+        set;
+    }
+
     public double Weight
     {
         get;
@@ -18,7 +36,6 @@ public class WeightKey
 
     public override string ToString()
     {
-        var builder = $"key: {SupplierKey?.ApiKey}, baseUrl: {SupplierKey?.BaseUrl}, Weight: {Weight}";
-        return builder;
+        return $"route: {RouteId}, providerModel: {ProviderModelValue}, priority: {Priority}, baseUrl: {SupplierKey?.BaseUrl}, weight: {Weight}";
     }
 }

@@ -24,11 +24,13 @@ Turbo-Auth (ASP.NET Core)
 ## 聊天请求路径
 
 1. 客户端以 Bearer JWT 调用 `POST /api/ai/chat`，并指定已配置的 `model`。
-2. `QuickModel` 从不可变的内存路由快照中，以费用权重选择该模型可用的 `ModelKey`。
+2. `QuickModel` 从不可变的内存路由快照中，先按 `Priority` 选择优先级最高的健康路由，再按费用权重选择 `ModelKey`。
 3. `PlayMixModelBacker` 解析实际模型标识；`ChatHandlerObtain` 从 DI 注册表按供应商类型选择适配器。
 4. 适配器调用上游 API，并把流式文本写回原始 HTTP 响应。
 
-模型和密钥的配置存放在 MySQL。每次变更后调用 `POST /api/sync/loadKeys` 刷新内存池，或重启服务使其重新加载。
+逻辑模型、供应商密钥和路由配置存放在 MySQL。路由包含 `ProviderModelValue`（上游模型名）、`Priority` 和 `Fee`，因此同一个逻辑模型可映射到不同供应商的不同上游模型。每次变更后调用 `POST /api/sync/loadKeys` 刷新内存池，或重启服务使其重新加载。
+
+在请求尚未写出响应前，路由失败会被记录，并尝试同一逻辑模型的下一条健康路由。连续失败达到 `AiRouting:FailureThreshold` 后，该路由会熔断 `AiRouting:BreakDurationSeconds`；流式响应已经开始后不会切换路由，以免拼接两个供应商的输出。
 
 ## 认证与权限
 

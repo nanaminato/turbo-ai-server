@@ -104,6 +104,8 @@ builder.Services.AddScoped<IWordDocumentProcessor, WordDocumentProcessor>();
 builder.Services.AddScoped<ITextDocumentProcessor, TextDocumentProcessor>();
 builder.Services.AddScoped<IKeyLoader, KeyLoader>();
 builder.Services.AddScoped<IKeyPoolRepository, StableKeyPoolRepository>();
+builder.Services.Configure<AiRoutingOptions>(builder.Configuration.GetSection("AiRouting"));
+builder.Services.AddSingleton<IRouteHealthTracker, RouteHealthTracker>();
 builder.Services.AddSingleton<QuickModel>();
 builder.Services.AddSingleton<PlayMixModelBacker>();
 builder.Services.AddScoped<IModelKeyBuilder, ModelKeyBuilder>();

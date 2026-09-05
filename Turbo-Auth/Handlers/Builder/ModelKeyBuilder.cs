@@ -1,53 +1,42 @@
-﻿using Turbo_Auth.Controllers.ApiAssets;
+using Turbo_Auth.Handlers.Differentiator;
 using Turbo_Auth.Handlers.Model2Key;
 using Turbo_Auth.Models.Suppliers;
 
 namespace Turbo_Auth.Handlers.Builder;
 
-public class ModelKeyBuilder: IModelKeyBuilder
+public class ModelKeyBuilder : IModelKeyBuilder
 {
-    public async Task<QuickModel> Build(List<SupplierKey> supplierKeys)
+    public Task<QuickModel> Build(List<SupplierKey> supplierKeys)
     {
-        /*
-         * 然后就可以构建模型的映射表了，这个表的基本结构是一个字典
-         * 针对任何一个模型，会有一个花费评估数组与其对应
-         * 后续处理时，根据根据这个数组调度合适的密钥进行使用
-         * *
-         */
-        var models = new HashSet<string>();
-        foreach (var key in
-                 supplierKeys
-                )
-        {
-            if (key.ModelKeyBinds != null)
-            {
-                foreach (var model in key.ModelKeyBinds!.Select(m => m.Model!.ModelValue))
-                {
-                    models.Add(model!);
-                }
-            }
-        }
-
-        var quick = supplierKeys
-            .SelectMany(sk => sk.ModelKeyBinds ?? Enumerable.Empty<ModelKeyBind>())
-            .Where(mkb => mkb.Enable && mkb.Model is { Enable: true } && models.Contains(mkb.Model.ModelValue!))
-            .Where(mkb => !(mkb.Model!.ModelValue == "gpt-image-2" && mkb.SupplierKey!.BaseUrl!.Contains("apimart")))
-            .GroupBy(mkb => mkb.Model!.ModelValue)
+        var routes = supplierKeys
+            .SelectMany(key => key.ModelKeyBinds ?? Enumerable.Empty<ModelKeyBind>())
+            .Where(bind => bind.Enable && bind.Model is { Enable: true, ModelValue: not null })
+            .Where(bind => bind.SupplierKey != null)
+            .Where(bind => !(bind.Model!.ModelValue == "gpt-image-2" &&
+                             bind.SupplierKey!.BaseUrl?.Contains("apimart", StringComparison.OrdinalIgnoreCase) == true))
+            .GroupBy(bind => bind.Model!.ModelValue!, StringComparer.Ordinal)
             .ToDictionary(
-                g => g.Key,
-                g => g.Select(mkb => new WeightKey {
-                    Weight = mkb.Fee > 0 ? 1 / mkb.Fee : 1,
-                    SupplierKey = mkb.SupplierKey
-                }).ToList()
-            );
-        var apiMartKeys = supplierKeys.
-            Where(s => s.RequestIdentifier == (int)Handlers.Differentiator.HandlerType.ApiMart)
-            .ToList();
-        return new()
-        {
-            Quick = quick,
-            ApiMartKeys = apiMartKeys
-        };
-    }
+                group => group.Key,
+                group => group.Select(bind => new WeightKey
+                {
+                    RouteId = bind.ModelKeyBindId,
+                    Priority = bind.Priority,
+                    ProviderModelValue = string.IsNullOrWhiteSpace(bind.ProviderModelValue)
+                        ? bind.Model!.ModelValue
+                        : bind.ProviderModelValue,
+                    Weight = bind.Fee > 0 ? 1 / bind.Fee : 1,
+                    SupplierKey = bind.SupplierKey
+                }).ToList(),
+                StringComparer.Ordinal);
 
+        var apiMartKeys = supplierKeys
+            .Where(key => key.RequestIdentifier == (int)HandlerType.ApiMart)
+            .ToList();
+
+        return Task.FromResult(new QuickModel
+        {
+            Quick = routes,
+            ApiMartKeys = apiMartKeys
+        });
+    }
 }

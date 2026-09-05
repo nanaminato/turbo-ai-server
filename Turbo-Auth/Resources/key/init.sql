@@ -28,6 +28,8 @@ create table ModelKeyBinds
     SupplierKeyId  int        not null,
     ModelId        int        not null,
     Fee            double     not null,
+    ProviderModelValue varchar(200) not null,
+    Priority       int        not null default 0,
     constraint FK_ModelKeyBinds_Models_ModelId
         foreign key (ModelId) references Models (ModelId)
             on delete cascade,
@@ -42,3 +44,5 @@ create index IX_ModelKeyBinds_ModelId
 create index IX_ModelKeyBinds_SupplierKeyId
     on ModelKeyBinds (SupplierKeyId);
 
+create index IX_ModelKeyBinds_Routing
+    on ModelKeyBinds (ModelId, Enable, Priority);

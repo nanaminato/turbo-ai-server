@@ -17,6 +17,8 @@ Turbo-Auth/Resources/merge/open-initdata.sql
 
 若从旧版数据库升级账户密码列，请先备份数据库，再执行 `Turbo-Auth/Resources/account/upgrade-password-column.sql`。旧明文密码会在用户下次成功登录时被替换为哈希。
 
+若部署本次多供应商路由升级，请执行 `Turbo-Auth/Resources/key/upgrade-model-routes.sql`。该迁移会用原逻辑模型名填充每条路由的 `ProviderModelValue`，因此原有行为不变；随后可按供应商分别修改上游模型名和 `Priority`。
+
 ## 配置服务
 
 以 `Turbo-Auth/appsettings.example.json` 为模板创建环境专用配置。不要提交该文件或真实凭据。生产环境推荐使用环境变量或密钥存储：
@@ -32,6 +34,8 @@ export Cors__AllowedOrigins__1='https://admin.example.com'
 ```
 
 必须配置 `ConnectionStrings:ciko`、`Jwt:Issuer`、`Jwt:Audience` 与 `Jwt:SecretKey`；缺少这些值时应用会拒绝启动。`Cors:AllowedOrigins` 需要填写前端实际来源（协议、域名和端口）。`Diagnostics:EnableSensitiveDataLogging` 仅能在本地开发时临时设为 `true`。
+
+`AiRouting:FailureThreshold` 指连续失败多少次后短暂熔断某一路由，`AiRouting:BreakDurationSeconds` 指熔断持续时间。默认值为 3 次和 60 秒；健康状态仅保存在进程内，重启后清空。
 
 ## 构建与运行
 

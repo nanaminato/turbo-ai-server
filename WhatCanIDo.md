@@ -52,7 +52,18 @@ curl -N -X POST http://localhost:6000/api/ai/chat \
 | 获取供应商类型编号 | `GET /api/key/types` |
 | 刷新内存密钥池 | `POST /api/sync/loadKeys` |
 
-创建密钥时填写 `BaseUrl`、`ApiKey`、`RequestIdentifier` 与启用状态；创建模型时填写展示名、上游模型标识、聊天/视觉能力与启用状态，并通过 `ModelKeyBinds` 将它们关联。不要在浏览器日志、源码或请求记录中保存 API 密钥。
+创建密钥时填写 `BaseUrl`、`ApiKey`、`RequestIdentifier` 与启用状态；创建模型时填写逻辑模型名、聊天/视觉能力与启用状态，并通过 `ModelKeyBinds` 将它们关联。每条关联可设置 `ProviderModelValue`（该供应商的实际模型名）、`Priority`（数字越小越优先）与 `Fee`（同一优先级内的权重依据）。不要在浏览器日志、源码或请求记录中保存 API 密钥。
+
+例如，客户端统一请求 `fast-chat`，但可将该逻辑模型配置为优先调用 OpenAI 的 `gpt-4.1-mini`，失败时再调用另一个供应商的 `gemini-2.5-flash`：
+
+```json
+{
+  "modelKeyBinds": [
+    { "modelId": 12, "providerModelValue": "gpt-4.1-mini", "priority": 0, "fee": 0.4, "enable": true },
+    { "modelId": 12, "providerModelValue": "gemini-2.5-flash", "priority": 1, "fee": 0.2, "enable": true }
+  ]
+}
+```
 
 ## 其他接口
 

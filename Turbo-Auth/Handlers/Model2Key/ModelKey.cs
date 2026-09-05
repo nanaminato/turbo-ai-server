@@ -4,6 +4,18 @@ namespace Turbo_Auth.Handlers.Model2Key;
 
 public class ModelKey
 {
+    public int RouteId
+    {
+        get;
+        set;
+    }
+
+    public string? LogicalModel
+    {
+        get;
+        set;
+    }
+
     public string? Model
     {
         get;
@@ -18,7 +30,7 @@ public class ModelKey
 
     public override string ToString()
     {
-        return $"model: {Model}; apiKey: {SupplierKey!.ApiKey}; baseUrl: {SupplierKey!.BaseUrl};\n";
+        return $"logicalModel: {LogicalModel}; providerModel: {Model}; route: {RouteId}; baseUrl: {SupplierKey?.BaseUrl};";
     }
 }
 

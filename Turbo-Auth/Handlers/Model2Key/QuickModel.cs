@@ -16,6 +16,16 @@ public class QuickModel
     // Used only while a new route table is being built. Readers always use _snapshot.
     private Dictionary<string, List<WeightKey>> _quick = new(StringComparer.Ordinal);
     private RouteSnapshot _snapshot = RouteSnapshot.Empty;
+    private readonly IRouteHealthTracker _routeHealthTracker;
+
+    public QuickModel() : this(AlwaysAvailableRouteHealthTracker.Instance)
+    {
+    }
+
+    public QuickModel(IRouteHealthTracker routeHealthTracker)
+    {
+        _routeHealthTracker = routeHealthTracker;
+    }
 
     public List<SupplierKey>? ApiMartKeys { get; set; }
 
@@ -47,12 +57,14 @@ public class QuickModel
 
         return weights.Select(weight => new ModelKey
         {
-            Model = model,
+            LogicalModel = model,
+            Model = weight.ProviderModelValue,
+            RouteId = weight.RouteId,
             SupplierKey = weight.SupplierKey
         }).ToList();
     }
 
-    public ModelKey GetModelAndKey(string model)
+    public ModelKey GetModelAndKey(string model, ISet<int>? excludedRouteIds = null)
     {
         var snapshot = Volatile.Read(ref _snapshot);
         if (!snapshot.Routes.TryGetValue(model, out var weights) || weights.Count == 0)
@@ -60,10 +72,21 @@ public class QuickModel
             throw new KeyNotFoundException("当前数据库不存在支持当前模型的可用密钥。");
         }
 
-        var selected = WeightRandom(weights);
+        var availableWeights = weights
+            .Where(weight => (excludedRouteIds == null || !excludedRouteIds.Contains(weight.RouteId)) &&
+                             _routeHealthTracker.IsAvailable(weight.RouteId))
+            .ToArray();
+        if (availableWeights.Length == 0)
+        {
+            throw new KeyNotFoundException("当前模型没有健康的可用路由。");
+        }
+
+        var selected = WeightRandom(availableWeights);
         return new ModelKey
         {
-            Model = model,
+            LogicalModel = model,
+            Model = selected.ProviderModelValue,
+            RouteId = selected.RouteId,
             SupplierKey = selected.SupplierKey
         };
     }
@@ -77,6 +100,9 @@ public class QuickModel
                 .Where(weight => weight.SupplierKey != null && weight.Weight > 0)
                 .Select(weight => new WeightKey
                 {
+                    RouteId = weight.RouteId,
+                    Priority = weight.Priority,
+                    ProviderModelValue = weight.ProviderModelValue,
                     Weight = weight.Weight,
                     SupplierKey = weight.SupplierKey
                 })
@@ -94,14 +120,18 @@ public class QuickModel
 
     private static WeightKey WeightRandom(IReadOnlyList<WeightKey> modelWeights)
     {
-        var totalWeight = modelWeights.Sum(item => item.Weight);
+        var preferredPriority = modelWeights.Min(item => item.Priority);
+        var preferredRoutes = modelWeights
+            .Where(item => item.Priority == preferredPriority)
+            .ToArray();
+        var totalWeight = preferredRoutes.Sum(item => item.Weight);
         if (totalWeight <= 0)
         {
             throw new InvalidOperationException("模型没有可用的路由权重。");
         }
 
         var randomWeight = Random.Shared.NextDouble() * totalWeight;
-        foreach (var item in modelWeights)
+        foreach (var item in preferredRoutes)
         {
             if (randomWeight < item.Weight)
             {
@@ -111,6 +141,15 @@ public class QuickModel
             randomWeight -= item.Weight;
         }
 
-        return modelWeights[^1];
+        return preferredRoutes[^1];
+    }
+
+    private sealed class AlwaysAvailableRouteHealthTracker : IRouteHealthTracker
+    {
+        public static readonly AlwaysAvailableRouteHealthTracker Instance = new();
+
+        public bool IsAvailable(int routeId) => true;
+        public void RecordSuccess(int routeId) { }
+        public void RecordFailure(int routeId) { }
     }
 }
