@@ -11,12 +11,6 @@ public class Model
         set;
     }
 
-    public bool Enable
-    {
-        get;
-        set;
-    }
-
     public bool IsChatModel
     {
         get;

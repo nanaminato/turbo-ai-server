@@ -49,7 +49,7 @@ public class ChatRoutingTests
                 Enable = true,
                 Fee = 0,
                 SupplierKey = key,
-                Model = new Model { Enable = true, ModelValue = "free-model", Name = "Free model" }
+                Model = new Model { ModelValue = "free-model", Name = "Free model" }
             }
         ];
 
@@ -109,7 +109,7 @@ public class ChatRoutingTests
                 Priority = priority,
                 ProviderModelValue = providerModel,
                 SupplierKey = key,
-                Model = new Model { Enable = true, ModelValue = "logical-model", Name = "Logical model" }
+                Model = new Model { ModelValue = "logical-model", Name = "Logical model" }
             }
         ];
         return key;

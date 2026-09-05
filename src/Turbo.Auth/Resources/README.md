@@ -7,6 +7,7 @@ MySqL数据库。（你可以修改这些内容，只需要你的数据库和这
 你可以使用 merge/init.sql 在空数据库中创建当前应用所需的全部数据表。
 然后使用merge/open-initdata.sql来填充一些数据，这是必须的。这将主要添加一些模型和身份。
 初始化不会创建默认账户。需要通过 SQL 创建用户时，先在交互式终端运行 `dotnet run --project src/Turbo.Auth/Turbo.Auth.csproj -- --hash-password` 生成密码哈希，再将哈希填入 `account/input.sql` 并执行；首个管理员还需按该文件末尾的注释分配 `admin` 和 `vip` 角色。已有数据库升级登录体系时，请先备份并只执行一次 `account/upgrade-auth-sessions.sql`。
+升级到删除 Models.Enable 的版本时，请先备份并只执行一次 `merge/upgrade-drop-models-enable.sql`。
 既然到这了，你需要注意下面的东西
 
 在开发环境和产品环境，Jwt用于验证用户的身份，由于项目是开源的，如果你不

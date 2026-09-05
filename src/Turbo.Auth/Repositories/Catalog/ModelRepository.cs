@@ -21,7 +21,7 @@ public class ModelRepository: IModelRepository
     public async Task<List<Model>?> GetChatModelsAsync()
     {
         return await _keyContext.Models!
-            .Where(m => m.IsChatModel && m.Enable)
+            .Where(m => m.IsChatModel)
             .ToListAsync();
     } 
 
@@ -60,7 +60,6 @@ public class ModelRepository: IModelRepository
             _keyContext.Models!.Add(new Model()
             {
                 Name = model.Name,
-                Enable = model.Enable,
                 IsChatModel = model.IsChatModel,
                 Vision = model.Vision,
                 ModelValue = model.ModelValue
@@ -77,7 +76,6 @@ public class ModelRepository: IModelRepository
         {
             innerModel.Name = model.Name;
             innerModel.IsChatModel = model.IsChatModel;
-            innerModel.Enable = model.Enable;
             innerModel.ModelValue = model.ModelValue;
             innerModel.Vision = model.Vision;
             await _keyContext.SaveChangesAsync();
@@ -91,12 +89,13 @@ public class ModelRepository: IModelRepository
 
     public async Task SetEnableStatus(int id, bool enable)
     {
+        // 真正的"模型可路由"由 ModelKeyBinds.Enable 决定；
+        // Models.Enable 字段已移除，详见 upgrade-drop-models-enable.sql。
         var modelKeyBinds = await _keyContext.ModelKeyBinds!.Where(mkb => mkb.ModelId == id)
             .ToListAsync();
         foreach (var mkb in modelKeyBinds)
         {
             mkb.Enable = enable;
-            Console.WriteLine(enable);
         }
 
         await _keyContext.SaveChangesAsync();

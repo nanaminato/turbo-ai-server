@@ -10,7 +10,7 @@ public class ModelKeyBuilder : IModelKeyBuilder
     {
         var routes = supplierKeys
             .SelectMany(key => key.ModelKeyBinds ?? Enumerable.Empty<ModelKeyBind>())
-            .Where(bind => bind.Enable && bind.Model is { Enable: true, ModelValue: not null })
+            .Where(bind => bind.Enable && bind.Model is { ModelValue: not null })
             .Where(bind => bind.SupplierKey != null)
             .Where(bind => !(bind.Model!.ModelValue == "gpt-image-2" &&
                              bind.SupplierKey!.BaseUrl?.Contains("apimart", StringComparison.OrdinalIgnoreCase) == true))
