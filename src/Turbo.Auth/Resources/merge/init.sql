@@ -145,6 +145,8 @@ create table GenerateTasks
     TaskType  longtext     null,
     AccountId int          not null,
     DateTime  datetime(6)  null,
+    Images    json         null,
+    Videos    json         null,
     constraint FK_GenerateTasks_Accounts_AccountId
         foreign key (AccountId) references Accounts (AccountId)
             on delete cascade

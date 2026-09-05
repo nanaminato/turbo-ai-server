@@ -15,9 +15,7 @@ src/Turbo.Auth/Resources/merge/init.sql
 src/Turbo.Auth/Resources/merge/open-initdata.sql
 ```
 
-若从旧版数据库升级账户密码列，请先备份数据库，再执行 `src/Turbo.Auth/Resources/account/upgrade-password-column.sql`。旧明文密码会在用户下次成功登录时被替换为哈希。
-
-若部署本次多供应商路由升级，请执行 `src/Turbo.Auth/Resources/key/upgrade-model-routes.sql`。该迁移会用原逻辑模型名填充每条路由的 `ProviderModelValue`，因此原有行为不变；随后可按供应商分别修改上游模型名和 `Priority`。
+初始化脚本仅面向空数据库，已包含当前应用所需的全部表、列和索引。现有数据库不提供增量升级脚本；请先备份数据，再重新创建数据库并按上述顺序初始化。
 
 ## 配置服务
 
