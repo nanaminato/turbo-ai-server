@@ -13,6 +13,7 @@ using Turbo.Auth.Controllers.Sync;
 using Turbo.Auth.Application.Routing;
 using Turbo.Auth.Application.Chat;
 using Turbo.Auth.Models.Config;
+using Turbo.Auth.Models.Accounts;
 using Turbo.Auth.Options;
 using Turbo.Auth.Repositories.Accounts;
 using Turbo.Auth.Repositories.Catalog;
@@ -21,6 +22,31 @@ using Turbo.Auth.Security;
 using Turbo.Kit.Pdf;
 using Turbo.Kit.Text;
 using Turbo.Kit.Word;
+
+if (args.Length == 1 && string.Equals(args[0], "--hash-password", StringComparison.Ordinal))
+{
+    if (Console.IsInputRedirected)
+    {
+        Console.Error.WriteLine("请在交互式终端中运行 --hash-password，以避免通过命令行或管道暴露密码。");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    Console.Write("请输入密码: ");
+    var password = ReadPassword();
+    Console.WriteLine();
+
+    if (string.IsNullOrWhiteSpace(password))
+    {
+        Console.Error.WriteLine("密码不能为空。");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    var passwordHash = new AccountPasswordService().Hash(new Account(), password);
+    Console.WriteLine(passwordHash);
+    return;
+}
 
 var builder = WebApplication.CreateBuilder(args);
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()?
@@ -219,3 +245,31 @@ app.Lifetime.ApplicationStarted.Register(() =>
 });
 
 app.Run();
+
+static string ReadPassword()
+{
+    var password = new StringBuilder();
+    while (true)
+    {
+        var key = Console.ReadKey(intercept: true);
+        if (key.Key == ConsoleKey.Enter)
+        {
+            return password.ToString();
+        }
+
+        if (key.Key == ConsoleKey.Backspace)
+        {
+            if (password.Length > 0)
+            {
+                password.Length--;
+            }
+
+            continue;
+        }
+
+        if (!char.IsControl(key.KeyChar))
+        {
+            password.Append(key.KeyChar);
+        }
+    }
+}

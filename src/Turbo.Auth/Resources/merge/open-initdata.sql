@@ -1,14 +1,9 @@
 ﻿# data
-insert into Accounts(AccountId, username, password, email)
-values (1, 'niko', 'nikoniko', '2@qq.com');
+-- 此脚本不创建带默认密码的账户。请使用 Resources/account/input.sql 创建首个管理员和其他 SQL 用户。
 insert into Roles(roleid, name)
 values (1, 'admin'),
        (2, 'user'),
        (3, 'vip');
-insert into AccountRoles (AccountId, RoleId)
-values (1, 1),
-       (1, 2),
-       (1, 3);
 INSERT INTO AvailableModels ( Enable, Name, IsChatModel, ModelValue, Vision) VALUES (1, 'gpt-3.5-turbo', 1, 'gpt-3.5-turbo', 0);
 INSERT INTO AvailableModels ( Enable, Name, IsChatModel, ModelValue, Vision) VALUES (1, 'o1-mini', 1, 'o1-mini', 0);
 INSERT INTO AvailableModels ( Enable, Name, IsChatModel, ModelValue, Vision) VALUES (1, 'o1-preview', 1, 'o1-preview', 0);

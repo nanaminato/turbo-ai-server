@@ -17,6 +17,14 @@ src/Turbo.Auth/Resources/merge/open-initdata.sql
 
 初始化脚本仅面向空数据库，已包含当前应用所需的全部表、列和索引。现有数据库不提供增量升级脚本；请先备份数据，再重新创建数据库并按上述顺序初始化。
 
+初始化数据不会写入任何默认账户或明文密码。创建首个管理员（及后续需要通过 SQL 创建的用户）时：
+
+1. 在交互式终端运行 `dotnet run --project src/Turbo.Auth/Turbo.Auth.csproj -- --hash-password`，输入密码后复制输出的哈希；输入过程不会回显密码。
+2. 将哈希、用户名和邮箱填入 `src/Turbo.Auth/Resources/account/input.sql` 顶部的变量，再执行该文件。
+3. 首个管理员按文件末尾的注释额外写入 `admin` 和 `vip` 角色；普通用户默认只拥有 `user` 角色。
+
+不要把明文密码或生成后的账户 SQL 提交到仓库。
+
 ## 配置服务
 
 以 `src/Turbo.Auth/appsettings.example.json` 为模板创建环境专用配置。不要提交该文件或真实凭据。生产环境推荐使用环境变量或密钥存储：
