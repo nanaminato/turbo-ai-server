@@ -279,7 +279,11 @@ public class GoogleChatHandler : IChatHandler
             cfg["topP"] = ToFiniteNumber(chatBody.TopP.Value);
             hasAny = true;
         }
-        if (chatBody.MaxCompletionTokens.HasValue)
+        // 单次回复限制 (max_completion_tokens)：
+        //   - HasValue 且为正数 → 透传给 Gemini 的 maxOutputTokens（前台「限制」模式）；
+        //   - HasValue=false 或 <=0 → 视作「无限制」，跳过该字段，
+        //     覆盖前台 isMaxTokensUnlimited() 开关以及历史以 0 表示无限制的配置。
+        if (chatBody.MaxCompletionTokens is > 0)
         {
             cfg["maxOutputTokens"] = chatBody.MaxCompletionTokens.Value;
             hasAny = true;

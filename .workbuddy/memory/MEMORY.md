@@ -18,6 +18,15 @@
 - 路由表存于 `QuickModel` 单例；权重选择由 `IRouteHealthTracker` + `WeightRandom` 完成。
 - `OpenAiChatHandler` / `GoogleChatHandler` 均需要 `IHttpClientFactory` 注入的 `AiProvider` 客户端（5 分钟超时）。
 
+## 单次回复限制（max_completion_tokens）的「无限制」语义
+- 前台 `turbo-user` 设置页有 `isMaxTokensUnlimited()` 开关。开关开启 ⇒ **请求体里直接省略 `max_completion_tokens` 字段**（不是发 `0` 或 `null`，由 `resolveMaxCompletionTokens` + `appendIfNumber` 双重保护）。历史配置里曾以 `0` 表示无限制，前端已归一化为「缺失」。
+- 后台所有 handler 统一按 `chatBody.MaxCompletionTokens is > 0` 判断：
+  - **OpenAiChatHandler**：`is > 0` 才设 `variant.MaxCompletionTokens`，否则跳过（OpenAI 允许省略）。
+  - **GoogleChatHandler**（`BuildGenerationConfig`）：`is > 0` 才设 `cfg["maxOutputTokens"]`，否则跳过（Gemini 允许省略）。
+  - **AnthropicChatHandler**：Anthropic API 的 `max_tokens` **必填**，无法真正省略；`is > 0` 用用户值，否则用常量 `UnlimitedMaxTokens = 8192`（覆盖 Claude 3.5/3.7/4 系列默认输出上限；超过模型自身上限时由 Anthropic 服务端截断）。
+  - **AlibabaChatHandler / TwitterChatHandler**：DashScope SDK 没有 `max_tokens` 字段，未引用此参数。
+- 详见 `Controllers/AI/Chat/Models/NoModelChatBody.cs` 上的 XML 注释。
+
 ## SDK 已知能力缺口（绕过方式）
 - **tryAGI.OpenAI 4.2.10**（替代 Betalgo）：GPT-5 / o-series 全功能原生支持；Variant2 上**没有** `Temperature / TopP` 属性，非推理模型走 `AdditionalProperties["temperature" / "top_p"]` 兜底（标记 `[JsonExtensionData]`）。
   - `BetaVerbosity` / `BetaReasoningEffort` 类只是占位 wrapper（仅 `AdditionalProperties`），不能接受枚举值；要用 `VerbosityEnum` / `ReasoningEffortEnum`。

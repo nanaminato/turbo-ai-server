@@ -12,6 +12,16 @@ public class NoModelChatBody
 
     [JsonProperty("frequency_penalty")]
     public double? FrequencyPenalty { get; set; }
+
+    /// <summary>
+    /// 单次回复限制 (max_completion_tokens)。
+    /// 语义对齐前台 <c>isMaxTokensUnlimited()</c> 开关：
+    ///   - 字段缺失（<c>null</c>）=「无限制」，由对应 handler 不向 AI 提供商传 max_tokens；
+    ///   - 正数 =「限制」，透传给 OpenAI / Gemini；Anthropic handler 在「无限制」分支
+    ///     会使用一个较高的安全默认值（8192），因为 Anthropic API 要求 max_tokens 必填；
+    ///   - 0 或负数 = 历史兼容（前台 <c>resolveMaxCompletionTokens</c> 已将 0 归一化为「缺失」），
+    ///     后端统一按「无限制」处理。
+    /// </summary>
     [JsonProperty("max_completion_tokens")]
     public int? MaxCompletionTokens { get; set; }
 
