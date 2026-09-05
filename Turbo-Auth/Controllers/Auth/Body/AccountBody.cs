@@ -8,7 +8,8 @@ public class AccountBody
     public int AccountId { get; set; }
     [MaxLength(20)]
     public string? Username { get; set; }
-    [MaxLength(20)]
+    [MaxLength(128)]
+    [DataType(DataType.Password)]
     public string? Password { get; set; }
     [MaxLength(50)]
     public string? Email { get; set; }

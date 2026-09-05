@@ -3,21 +3,26 @@ using Turbo_Auth.Context;
 using Turbo_Auth.Controllers.Auth.Body;
 using Turbo_Auth.Exceptions;
 using Turbo_Auth.Models.Accounts;
+using Turbo_Auth.Security;
 
 namespace Turbo_Auth.Repositories.Accounts;
 
 public class AccountRepository: IAccountRepository
 {
     private AuthContext _authContext;
-    public AccountRepository(AuthContext authContext)
+    private readonly IAccountPasswordService _passwordService;
+
+    public AccountRepository(AuthContext authContext, IAccountPasswordService passwordService)
     {
         _authContext = authContext;
+        _passwordService = passwordService;
     }
     public async Task AddUserAccountAsync(Account account)
     {
         await using var transaction = await _authContext.Database.BeginTransactionAsync();
         try
         {
+            account.Password = _passwordService.Hash(account, account.Password!);
             await _authContext.Accounts!.AddAsync(account);// 保存更改
             await _authContext.SaveChangesAsync();
             Console.WriteLine(account);
@@ -50,7 +55,7 @@ public class AccountRepository: IAccountRepository
             var account = new Account()
             {
                 Username = accountBody.Username,
-                Password = accountBody.Password,
+                Password = _passwordService.Hash(new Account(), accountBody.Password!),
                 Email = accountBody.Email
             };
             if (_authContext.Accounts!.Select(acc => acc.Username).Contains(account.Username))
@@ -71,7 +76,7 @@ public class AccountRepository: IAccountRepository
                 await _authContext.SaveChangesAsync();
             }
         }
-        catch (Exception e)
+        catch (Exception)
         {
             throw new NotMatchException();
         }
@@ -88,7 +93,10 @@ public class AccountRepository: IAccountRepository
             }
 
             account.Username = accountBody.Username;
-            account.Password = accountBody.Password;
+            if (!string.IsNullOrWhiteSpace(accountBody.Password))
+            {
+                account.Password = _passwordService.Hash(account, accountBody.Password);
+            }
             account.Email = accountBody.Email;
             await _authContext.SaveChangesAsync();
             accountBody.UserRoles ??= new List<Role>();
@@ -109,74 +117,60 @@ public class AccountRepository: IAccountRepository
                 await _authContext.SaveChangesAsync();
             }
         }
-        catch (Exception e)
+        catch (Exception)
         {
             throw new NotMatchException();
         }
     }
 
-    public async Task<List<dynamic>> GetAccountsAsync()
+    public async Task<List<AccountResponse>> GetAccountsAsync()
     {
-        
-        var accounts =  await _authContext.Accounts!.ToListAsync();
-        var list = new List<dynamic>();
-        foreach (var account in accounts)
-        {
-            var roles = await _authContext.AccountRoles!
-                .Where(a => a.AccountId == account.AccountId)
-                .Select(r => r.Role).ToListAsync();
-            list.Add(new
-            {
-                account.AccountId,
-                account.Username,
-                account.Email,
-                account.Password,
-                UserRoles = roles 
-            });
-        }
+        var accounts = await _authContext.Accounts!
+            .AsNoTracking()
+            .Include(account => account.UserRoles)!
+            .ThenInclude(accountRole => accountRole.Role)
+            .ToListAsync();
 
-        return list;
+        return accounts.Select(ToResponse).ToList();
     }
-    public async Task<List<dynamic>> GetAccountsWithRoleAsync(int roleId)
+    public async Task<List<AccountResponse>> GetAccountsWithRoleAsync(int roleId)
     {
-        var accounts = await _authContext.AccountRoles!.Where(r => r.RoleId == roleId)
-            .Select(a => a.Account).ToListAsync();
-        var list = new List<dynamic>();
-        foreach (var account in accounts)
-        {
-            var roles = await _authContext.AccountRoles!
-                .Where(a => a.AccountId == account!.AccountId)
-                .Select(r => r.Role).ToListAsync();
-            list.Add(new
-            {
-                account!.AccountId,
-                account.Username,
-                account.Email,
-                account.Password,
-                UserRoles = roles 
-            });
-        }
+        var accounts = await _authContext.Accounts!
+            .AsNoTracking()
+            .Where(account => account.UserRoles!.Any(accountRole => accountRole.RoleId == roleId))
+            .Include(account => account.UserRoles)!
+            .ThenInclude(accountRole => accountRole.Role)
+            .ToListAsync();
 
-        return list;
+        return accounts.Select(ToResponse).ToList();
     }
 
-    public async Task<dynamic> GetAccountByIdAsync(int id)
+    public async Task<AccountResponse> GetAccountByIdAsync(int id)
     {
-        var account = await _authContext.Accounts!.FirstOrDefaultAsync(a => a.AccountId == id);
-        var roles = await _authContext.AccountRoles!
-            .Where(a => a.AccountId == id)
-            .Select(r => r.Role).ToListAsync();
+        var account = await _authContext.Accounts!
+            .AsNoTracking()
+            .Include(candidate => candidate.UserRoles)!
+            .ThenInclude(accountRole => accountRole.Role)
+            .FirstOrDefaultAsync(candidate => candidate.AccountId == id);
         if (account == null)
         {
             throw new Exception();
         }
-        return new
+
+        return ToResponse(account);
+    }
+
+    private static AccountResponse ToResponse(Account account)
+    {
+        return new AccountResponse
         {
-            account.AccountId,
-            account.Username,
-            account.Email,
-            account.Password,
-            UserRoles = roles 
+            AccountId = account.AccountId,
+            Username = account.Username,
+            Email = account.Email,
+            UserRoles = account.UserRoles?
+                .Select(accountRole => accountRole.Role)
+                .OfType<Role>()
+                .ToList() ?? []
         };
     }
 

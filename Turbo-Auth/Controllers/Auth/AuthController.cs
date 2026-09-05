@@ -8,6 +8,7 @@ using Turbo_Auth.Context;
 using Turbo_Auth.Controllers.Auth.Body;
 using Turbo_Auth.Models.Accounts;
 using Turbo_Auth.Repositories.Accounts;
+using Turbo_Auth.Security;
 
 namespace Turbo_Auth.Controllers.Auth;
 
@@ -18,12 +19,14 @@ public class AuthController : Controller
     private AuthContext _context;
     private readonly IConfiguration _configuration;
     private readonly IAccountRepository _accountRepository;
+    private readonly IAccountPasswordService _passwordService;
     public AuthController(AuthContext context,IConfiguration configuration,
-        IAccountRepository accountRepository)
+        IAccountRepository accountRepository, IAccountPasswordService passwordService)
     {
         _context = context;
         _configuration = configuration;
         _accountRepository = accountRepository;
+        _passwordService = passwordService;
     }
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] SignBody body)
@@ -69,8 +72,18 @@ public class AuthController : Controller
     
     private async Task<(bool,int)> IsValidUser(string username, string password)
     {
-        var user = await _context.Accounts!.Where(u => u.Username == username&&u.Password == password).FirstOrDefaultAsync();
+        var user = await _context.Accounts!.FirstOrDefaultAsync(u => u.Username == username);
         if (user == null) return (false,-1);
+
+        var verification = _passwordService.Verify(user, password);
+        if (verification == PasswordVerificationState.Invalid) return (false, -1);
+
+        if (verification == PasswordVerificationState.ValidNeedsUpgrade)
+        {
+            user.Password = _passwordService.Hash(user, password);
+            await _context.SaveChangesAsync();
+        }
+
         return (true,user.AccountId);
     }
     

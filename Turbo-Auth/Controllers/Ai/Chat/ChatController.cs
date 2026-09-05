@@ -18,15 +18,17 @@ public class ChatController: Controller
     private QuickModel _quickModel;
     private PlayMixModelBacker _backer;
     private IModelRepository _modelRepository;
+    private readonly ILogger<ChatController> _logger;
     public ChatController(IChatHandlerObtain chatHandlerObtain, 
         QuickModel quickModel,PlayMixModelBacker backer,
-        IModelRepository modelRepository
+        IModelRepository modelRepository, ILogger<ChatController> logger
     )
     {
         _chatHandlerObtain = chatHandlerObtain;
         _quickModel = quickModel;
         _backer = backer;
         _modelRepository = modelRepository; 
+        _logger = logger;
     }
     
     
@@ -43,7 +45,18 @@ public class ChatController: Controller
         }
         catch (Exception e)
         {
-            await Response.WriteAsync(e.Message);
+            _logger.LogError(
+                "AI chat request failed. TraceId: {TraceId}; ExceptionType: {ExceptionType}",
+                HttpContext.TraceIdentifier,
+                e.GetType().Name);
+            Response.StatusCode = StatusCodes.Status500InternalServerError;
+            Response.ContentType = "application/problem+json";
+            await Response.WriteAsJsonAsync(new ProblemDetails
+            {
+                Status = StatusCodes.Status500InternalServerError,
+                Title = "AI 服务暂时不可用",
+                Instance = HttpContext.Request.Path
+            });
             await Response.CompleteAsync();
         }
     }

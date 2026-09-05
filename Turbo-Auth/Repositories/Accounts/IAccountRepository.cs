@@ -8,8 +8,8 @@ public interface IAccountRepository
     Task AddUserAccountAsync(Account account);
     Task AddAccountAsync(AccountBody accountBody);
     Task UpdateAccountAsync(AccountBody accountBody);
-    Task<List<dynamic>> GetAccountsAsync();
-    Task<dynamic> GetAccountByIdAsync(int id);
+    Task<List<AccountResponse>> GetAccountsAsync();
+    Task<AccountResponse> GetAccountByIdAsync(int id);
     Task DeleteAccountByIdAsync(int id);
-    Task<List<dynamic>> GetAccountsWithRoleAsync(int roleId);
+    Task<List<AccountResponse>> GetAccountsWithRoleAsync(int roleId);
 }

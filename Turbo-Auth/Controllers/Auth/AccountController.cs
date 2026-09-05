@@ -37,7 +37,7 @@ public class AccountController: Controller
             var account = await _accountRepository.GetAccountByIdAsync(id);
             return Ok(account);
         }
-        catch (Exception e)
+        catch (Exception)
         {
             return BadRequest("没有该账号");
         }
@@ -52,9 +52,9 @@ public class AccountController: Controller
             await _accountRepository.AddAccountAsync(account);
             return Ok();
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            return BadRequest(e.Message);
+            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = "账号创建失败" });
         }
     }
 
@@ -69,9 +69,9 @@ public class AccountController: Controller
             await _accountRepository.UpdateAccountAsync(account);
             return Ok();
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            return BadRequest(e.Message);
+            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = "账号更新失败" });
         }
     }
 
@@ -84,9 +84,9 @@ public class AccountController: Controller
             await _accountRepository.DeleteAccountByIdAsync(id);
             return Ok();
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            return BadRequest(e.Message);
+            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = "账号删除失败" });
         }
     }
 }

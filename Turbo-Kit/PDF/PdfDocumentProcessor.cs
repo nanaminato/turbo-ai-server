@@ -1,6 +1,5 @@
-﻿using System.Text;
-using iTextSharp.text.pdf;
-using iTextSharp.text.pdf.parser;
+using System.Text;
+using UglyToad.PdfPig;
 
 namespace Turbo_Kit.PDF;
 
@@ -8,13 +7,11 @@ public class PdfDocumentProcessor: IPdfDocumentProcessor
 {
     public string Process(string localPath)
     {
-        using var reader = new PdfReader(localPath);
+        using var document = PdfDocument.Open(localPath);
         var builder = new StringBuilder();
-        for (var page = 1; page <= reader.NumberOfPages; page++)
+        foreach (var page in document.GetPages())
         {
-            ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
-            var text = PdfTextExtractor.GetTextFromPage(reader, page, strategy);
-            builder.Append(text);
+            builder.Append(page.Text);
         }
 
         return builder.ToString();

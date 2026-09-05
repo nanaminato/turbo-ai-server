@@ -8,8 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="iTextSharp" Version="5.5.13.5" />
-      <PackageReference Include="NPOI" Version="2.8.0" />
+      <PackageReference Include="PdfPig" Version="0.1.12" />
     </ItemGroup>
 
 </Project>

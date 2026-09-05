@@ -54,9 +54,9 @@ public class RoleController: Controller
                 msg = "更新成功"
             });
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            return BadRequest(e.Message);
+            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = "角色更新失败" });
         }
         
     }
@@ -73,9 +73,9 @@ public class RoleController: Controller
                 msg = "添加成功"
             });
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            return BadRequest(e.Message);
+            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = "角色创建失败" });
         }
     }
 

@@ -10,7 +10,7 @@ public class Account
     [MaxLength(20)]
     public string? Username { get; set; }
     [Required]
-    [MaxLength(20)]
+    [MaxLength(512)]
     public string? Password { get; set; }
     [MaxLength(50)]
     [Required]

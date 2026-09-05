@@ -1,29 +1,38 @@
-﻿using System.Text;
-using NPOI.XWPF.UserModel;
+using System.IO.Compression;
+using System.Text;
+using System.Xml.Linq;
 
 namespace Turbo_Kit.WORD;
+
 public class WordDocumentProcessor: IWordDocumentProcessor
 {
+    private static readonly XNamespace Wordprocessing = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
     public string Process(string localPath)
     {
         var builder = new StringBuilder();
-        using var file = new FileStream(localPath, FileMode.Open, FileAccess.Read);
-        var doc = new XWPFDocument(file);
+        using var archive = ZipFile.OpenRead(localPath);
+        var documentEntry = archive.GetEntry("word/document.xml")
+            ?? throw new InvalidDataException("The DOCX file does not contain word/document.xml.");
+        using var documentStream = documentEntry.Open();
+        var document = XDocument.Load(documentStream);
 
-        foreach (var para in doc.Paragraphs)
+        foreach (var paragraph in document.Descendants(Wordprocessing + "p"))
         {
-            builder.AppendLine(para.Text);
-        }
-
-        foreach (var table in doc.Tables)
-        {
-            foreach (var row in table.Rows)
+            foreach (var node in paragraph.Descendants())
             {
-                foreach (var cell in row.GetTableCells())
+                if (node.Name == Wordprocessing + "t")
                 {
-                    builder.Append(cell.GetText());
+                    builder.Append(node.Value);
+                }
+                else if (node.Name == Wordprocessing + "tab")
+                {
                     builder.Append('\t');
                 }
+            }
+
+            if (paragraph.Descendants(Wordprocessing + "t").Any())
+            {
                 builder.AppendLine();
             }
         }

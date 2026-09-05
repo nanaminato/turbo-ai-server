@@ -1,5 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -19,18 +21,31 @@ using Turbo_Auth.Options;
 using Turbo_Auth.Repositories.Accounts;
 using Turbo_Auth.Repositories.ApiAssets;
 using Turbo_Auth.Repositories.Messages;
+using Turbo_Auth.Security;
 using Turbo_Kit.PDF;
 using Turbo_Kit.Text;
 using Turbo_Kit.WORD;
 
 var builder = WebApplication.CreateBuilder(args);
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()?
+    .Where(origin => Uri.TryCreate(origin, UriKind.Absolute, out _))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray() ?? [];
+
 builder.Services.AddCors(options => options.AddPolicy("CorsPolicy",
     set =>
     {
-        set.SetIsOriginAllowed(origin => true)
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
+        if (allowedOrigins.Length == 0)
+        {
+            set.SetIsOriginAllowed(_ => false);
+        }
+        else
+        {
+            set.WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
+        }
     }));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddControllers().AddNewtonsoftJson(options =>
@@ -40,31 +55,34 @@ builder.Services.AddControllers().AddNewtonsoftJson(options =>
 
 builder.Services.AddSignalR();
 builder.Services.AddSwaggerGen();
+var connectionString = builder.Configuration.GetConnectionString("ciko");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException("ConnectionStrings:ciko must be configured through environment-specific configuration or a secret store.");
+}
+
 var serverVersion = new MySqlServerVersion(new Version(8, 4, 6));
-builder.Services.AddDbContext<AuthContext>(
-    dbContextOptions =>
+var enableSensitiveDatabaseLogging = builder.Environment.IsDevelopment() &&
+                                     builder.Configuration.GetValue<bool>("Diagnostics:EnableSensitiveDataLogging");
+
+void ConfigureDatabase(DbContextOptionsBuilder options)
+{
+    options.UseMySql(connectionString, serverVersion)
+        .LogTo(Console.WriteLine, LogLevel.Error);
+
+    if (enableSensitiveDatabaseLogging)
     {
-        dbContextOptions
-            .UseMySql(builder.Configuration.GetConnectionString("ciko"), serverVersion)
-            .LogTo(Console.WriteLine, LogLevel.Error)
-            .EnableSensitiveDataLogging()
+        options.EnableSensitiveDataLogging()
             .EnableDetailedErrors();
     }
+}
+
+builder.Services.AddDbContext<AuthContext>(
+    ConfigureDatabase
 );
 builder.Services.AddDbContext<KeyContext>(
-    dbContextOptions =>
-    {
-        dbContextOptions
-            .UseMySql(builder.Configuration.GetConnectionString("ciko"), serverVersion)
-            .LogTo(Console.WriteLine, LogLevel.Error)
-            .EnableSensitiveDataLogging()
-            .EnableDetailedErrors();
-    }
+    ConfigureDatabase
 );
-// builder.Services.AddGeminiClient(options =>
-// {
-//     options.ApiKey = "AIzaSyDW98j3Qe1nXWCq-6wGxAQfIZKCpD7zpa4";
-// });
 builder.Services.AddMemoryCache(); // 添加内存缓存支持
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IIdGetter, IdGetter>();
@@ -86,12 +104,19 @@ builder.Services.AddSingleton<QuickModel>();
 builder.Services.AddSingleton<PlayMixModelBacker>();
 builder.Services.AddScoped<IModelKeyBuilder, ModelKeyBuilder>();
 builder.Services.AddScoped<IChatHandlerObtain, ChatHandlerObtain>();
+builder.Services.AddSingleton<IAccountPasswordService, AccountPasswordService>();
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
 
-builder.Services.AddHttpClient();
+var jswSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>()
+    ?? throw new InvalidOperationException("Jwt settings are required.");
+if (string.IsNullOrWhiteSpace(jswSettings.SecretKey) ||
+    string.IsNullOrWhiteSpace(jswSettings.Issuer) ||
+    string.IsNullOrWhiteSpace(jswSettings.Audience))
+{
+    throw new InvalidOperationException("Jwt:Issuer, Jwt:Audience, and Jwt:SecretKey must be configured through environment-specific configuration or a secret store.");
+}
 
-var jswSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
-var secretKey = Encoding.UTF8.GetBytes(jswSettings!.SecretKey!);
+var secretKey = Encoding.UTF8.GetBytes(jswSettings.SecretKey);
 builder.Services.AddAuthentication(options =>
     {
         options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -139,6 +164,24 @@ else
 }
 
 var app = builder.Build();
+app.UseExceptionHandler(exceptionApp => exceptionApp.Run(async context =>
+{
+    var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>()
+        .CreateLogger("UnhandledException");
+    logger.LogError(
+        "Unhandled exception. TraceId: {TraceId}; ExceptionType: {ExceptionType}",
+        context.TraceIdentifier,
+        exception?.GetType().Name);
+
+    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+    await context.Response.WriteAsJsonAsync(new ProblemDetails
+    {
+        Status = StatusCodes.Status500InternalServerError,
+        Title = "服务器内部错误",
+        Instance = context.Request.Path
+    });
+}));
 app.UseCors("CorsPolicy");
 
 if (app.Environment.IsDevelopment())
@@ -155,9 +198,11 @@ app.MapFallbackToFile("/ai/{*path:nonfile}", "ai/index.html");
 app.MapFallbackToFile("/admin/{*path:nonfile}", "admin/index.html");
 
 
-var serviceProvider = app.Services.CreateScope().ServiceProvider;
-var loader = serviceProvider.GetRequiredService<IKeyLoader>();
-loader.LoadKeys();
+using (var startupScope = app.Services.CreateScope())
+{
+    var loader = startupScope.ServiceProvider.GetRequiredService<IKeyLoader>();
+    await loader.LoadKeys();
+}
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     var addresses = app.Urls;

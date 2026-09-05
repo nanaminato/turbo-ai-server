@@ -23,9 +23,9 @@ public class SyncController: Controller
             await _keyLoader.LoadKeys();
             return Ok(new{msg="加载密钥成功"});
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            return BadRequest($"加载密钥失败！{e.Message}");
+            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = "加载密钥失败" });
         }
         
     }
