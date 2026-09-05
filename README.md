@@ -25,6 +25,6 @@ dotnet restore
 dotnet run --project src/Turbo.Auth/Turbo.Auth.csproj --launch-profile http
 ```
 
-默认示例配置监听 `http://0.0.0.0:6000`。开发环境可通过 `/swagger` 查看由控制器生成的接口定义。
+使用 `http` 启动配置进行本地开发时，服务监听 `http://localhost:5111`；开发环境可通过 `/swagger` 查看由控制器生成的接口定义。示例 Kestrel 配置在未使用启动配置的部署场景监听 `http://0.0.0.0:6000`。
 
 首次启动后，使用管理员接口配置供应商密钥、模型以及密钥与模型的关联；已启用的关联会在启动时加载到内存密钥池。详见 [部署与配置](docs/deployment.md) 和 [API 使用](docs/api.md)。

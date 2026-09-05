@@ -25,12 +25,6 @@ dotnet test Turbo.AI.Server.sln --configuration Release --nologo
 
 ## 前端联调
 
-用户端与管理端分别在其仓库构建。若它们不与服务同源部署，在各自 `assets/config.json` 中设置：
+用户端与管理端已合并至 `turbo-user`。本地运行服务端的 `http` 启动配置时，API 默认监听 `http://localhost:5111`；前端的 `src/environments/environment.ts` 应使用 `http://localhost:5111/`。若调整服务端调试端口，同步修改该环境文件，并将 Angular 开发服务器地址加入 `Cors:AllowedOrigins`。
 
-```json
-{
-  "apiUrl": "https://api.example.com/"
-}
-```
-
-该地址必须同时出现在后端 `Cors:AllowedOrigins` 中。联调时至少验证登录、模型读取、流式聊天和密钥池刷新。
+生产构建使用 `src/environments/environment.prod.ts` 中的 `apiUrl: '/'`。将前端构建产物部署到本服务的 `wwwroot` 根目录，即可使用同源请求；不再使用 `assets/config.json`、`/ai` 或独立的 `/admin` 站点。联调时至少验证登录、模型读取、流式聊天、管理路由和密钥池刷新。

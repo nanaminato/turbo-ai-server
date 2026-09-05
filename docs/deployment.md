@@ -37,7 +37,6 @@ export Jwt__Audience='turbo-ai-client'
 export Jwt__SecretKey='a-long-random-secret'
 export Jwt__RefreshTokenPepper='a-separate-long-random-secret'
 export Cors__AllowedOrigins__0='https://app.example.com'
-export Cors__AllowedOrigins__1='https://admin.example.com'
 ```
 
 必须配置 `ConnectionStrings:ciko`、`Jwt:Issuer`、`Jwt:Audience`、`Jwt:SecretKey` 与独立的 `Jwt:RefreshTokenPepper`；缺少这些值时应用会拒绝启动。`Jwt:AccessTokenMinutes` 只能设为 10–15，`Jwt:RefreshTokenDays` 为 1–30。生产环境配置 Redis 后，账户安全版本和会话状态会共享缓存，以避免每次 API 请求访问 MySQL。`Cors:AllowedOrigins` 需要填写前端实际来源（协议、域名和端口）。`Diagnostics:EnableSensitiveDataLogging` 仅能在本地开发时临时设为 `true`。
@@ -56,19 +55,20 @@ ASPNETCORE_ENVIRONMENT=Production dotnet ./publish/Turbo.Auth.dll
 
 ## 部署前端
 
-用户端和管理端为独立项目：
+用户端与管理端已合并为单一 Angular 应用：[turbo-user](https://github.com/nanaminato/turbo-user)。生产构建使用环境文件中的同源 API 地址 `/`：
 
-- 用户端：[turbo-user](https://github.com/nanaminato/turbo-user)
-- 管理端：[turboai-admin](https://github.com/nanaminato/turboai-admin)
-
-在各自项目中构建后，将产物分别放到：
-
-```text
-src/Turbo.Auth/wwwroot/ai
-src/Turbo.Auth/wwwroot/admin
+```bash
+npm ci
+npm run build
 ```
 
-服务会把 `/ai/*` 和 `/admin/*` 回退到对应的单页应用入口。若前端和后端分开部署，在前端的 `assets/config.json` 中将 `apiUrl` 设置为后端公开地址；同源部署时使用空值。
+将构建产物中的浏览器文件部署到：
+
+```text
+src/Turbo.Auth/wwwroot
+```
+
+服务会为所有非文件路径回退到 `index.html`，因此聊天、图像、多媒体和管理路由共享同一入口。不要再创建 `wwwroot/ai`、`wwwroot/admin`，也不再支持通过 `assets/config.json` 在运行时设置 API 地址。
 
 ## 配置模型和密钥
 

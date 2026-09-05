@@ -7,7 +7,7 @@
 注册和登录均使用 JSON 请求体：
 
 ```bash
-curl -X POST http://localhost:6000/api/auth/login \
+curl -X POST http://localhost:5111/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"developer","password":"change-me"}'
 ```
@@ -33,7 +33,7 @@ Authorization: Bearer <token>
 调用者须具有 `vip` 角色，且 `model` 必须已在管理员端启用并绑定到可用密钥。服务以流式文本响应：
 
 ```bash
-curl -N -X POST http://localhost:6000/api/ai/chat \
+curl -N -X POST http://localhost:5111/api/ai/chat \
   -H 'Authorization: Bearer <token>' \
   -H 'Content-Type: application/json' \
   -d '{

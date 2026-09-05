@@ -260,8 +260,7 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapFallbackToFile("/ai/{*path:nonfile}", "ai/index.html");
-app.MapFallbackToFile("/admin/{*path:nonfile}", "admin/index.html");
+app.MapFallbackToFile("index.html");
 
 
 using (var startupScope = app.Services.CreateScope())
