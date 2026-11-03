@@ -81,6 +81,21 @@ public static class ApiMessages
         ("en", "no_api_key") => "No API key is available.",
         ("ja", "no_api_key") => "利用可能なAPIキーがありません。",
         (_, "no_api_key") => "no api key is available",
+        ("en", "reset_requested") => "If the username and email match, a reset email will be sent.",
+        ("ja", "reset_requested") => "ユーザー名とメールアドレスが一致する場合、再設定メールを送信します。",
+        (_, "reset_requested") => "如果用户名和邮箱匹配，重置邮件将发送至该邮箱。",
+        ("en", "reset_invalid") => "The reset link is invalid, expired, or already used.",
+        ("ja", "reset_invalid") => "再設定リンクは無効、有効期限切れ、または使用済みです。",
+        (_, "reset_invalid") => "重置链接无效、已过期或已使用。",
+        ("en", "reset_unavailable") => "Email password reset is not enabled. Contact your administrator.",
+        ("ja", "reset_unavailable") => "メールによる再設定は有効になっていません。管理者にお問い合わせください。",
+        (_, "reset_unavailable") => "邮件重置暂未启用，请联系管理员。",
+        ("en", "reset_email_subject") => "Set or reset your Turbo AI password",
+        ("ja", "reset_email_subject") => "Turbo AI パスワード設定・再設定",
+        (_, "reset_email_subject") => "Turbo AI 密码设置与重置",
+        ("en", "reset_email_body") => "Open the link below to set your password. It expires in 30 minutes and can be used once. If you did not request this, ignore this email.",
+        ("ja", "reset_email_body") => "下のリンクからパスワードを設定してください。リンクは30分間有効で、一度だけ使用できます。心当たりがない場合は、このメールを無視してください。",
+        (_, "reset_email_body") => "请打开下面的链接设置密码，链接 30 分钟内有效，仅可使用一次。如果不是你本人操作，请忽略此邮件。",
         _ => code
     };
 }

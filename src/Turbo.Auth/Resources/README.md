@@ -6,7 +6,8 @@ MySqL数据库。（你可以修改这些内容，只需要你的数据库和这
 本地测试环境（windows下MySQL不区分大小写）。  
 你可以使用 merge/init.sql 在空数据库中创建当前应用所需的全部数据表。
 然后使用merge/open-initdata.sql来填充一些数据，这是必须的。这将主要添加一些模型和身份。
-初始化不会创建默认账户。需要通过 SQL 创建用户时，先在交互式终端运行 `dotnet run --project src/Turbo.Auth/Turbo.Auth.csproj -- --hash-password` 生成密码哈希，再将哈希填入 `account/input.sql` 并执行；首个管理员还需按该文件末尾的注释分配 `admin` 和 `vip` 角色。已有数据库升级登录体系时，请先备份并只执行一次 `account/upgrade-auth-sessions.sql`。
+推荐纯 SQL 初始化：先导入 `merge/init.sql` 和 `merge/open-initdata.sql`，再填写并导入 `account/create-admin.sql` 的管理员用户名及真实邮箱。账户初始空密码不可登录。正常部署应用、配置 PasswordReset SMTP 后，从登录页“忘记密码”发送邮件并设置初始密码，不用运行 .NET 初始化命令或生成哈希。
+已有管理员直接使用其用户名与可用邮箱申请重置，脚本不会覆盖既有账户。重置功能默认关闭，详细配置见 `docs/deployment.md`。原有 `--init-db` / `--create-admin` 保留为不使用邮件时的可选方式。
 升级到删除 Models.Enable 的版本时，请先备份并只执行一次 `merge/upgrade-drop-models-enable.sql`。
 既然到这了，你需要注意下面的东西
 

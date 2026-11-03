@@ -1,3 +1,7 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.DataProtection;
+using Turbo.Auth.Security.PasswordReset;
+using Turbo.Auth.Bootstrap;
 using Turbo.Auth.Localization;
 using Microsoft.AspNetCore.Localization;
 using System.Text;
@@ -24,6 +28,8 @@ using Turbo.Auth.Security;
 using Turbo.Kit.Pdf;
 using Turbo.Kit.Text;
 using Turbo.Kit.Word;
+
+if (await DatabaseSetupCommand.TryRunAsync(args)) return;
 
 if (args.Length == 1 && string.Equals(args[0], "--hash-password", StringComparison.Ordinal))
 {
@@ -95,6 +101,22 @@ builder.Services.AddControllers().AddNewtonsoftJson(options =>
     options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;
 });
 
+builder.Services.AddOptions<PasswordResetOptions>().Bind(builder.Configuration.GetSection("PasswordReset"))
+    .Validate(options => options.IsValid(), "PasswordReset configuration is invalid.").ValidateOnStart();
+var protection = builder.Services.AddDataProtection().SetApplicationName("Turbo.Auth");
+var keyPath = builder.Configuration["DataProtection:KeyPath"];
+if (!string.IsNullOrWhiteSpace(keyPath)) protection.PersistKeysToFileSystem(new DirectoryInfo(keyPath));
+builder.Services.AddSingleton<ResetTokenService>();
+builder.Services.AddScoped<IPasswordResetStore, PasswordResetStore>();
+builder.Services.AddScoped<IPasswordResetEmailSender, PasswordResetEmailSender>();
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("password-reset", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+        { PermitLimit = 10, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
+});
 builder.Services.AddSignalR();
 builder.Services.AddSwaggerGen();
 var connectionString = builder.Configuration.GetConnectionString("ciko");
@@ -279,6 +301,7 @@ if (app.Environment.IsDevelopment())
 }
 app.UseStaticFiles();
 app.UseRouting();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

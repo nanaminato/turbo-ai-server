@@ -4,7 +4,7 @@
 
 1. 安装 `global.json` 指定的 .NET SDK。
 2. 从 `src/Turbo.Auth/appsettings.example.json` 创建 `appsettings.Development.json`，并填写本地 MySQL、JWT 和 CORS 配置。
-3. 创建空 MySQL 数据库，执行 `src/Turbo.Auth/Resources/merge/init.sql` 和 `open-initdata.sql`。
+3. 导入 `merge/init.sql`、`merge/open-initdata.sql`，填写并导入 `account/create-admin.sql` 的真实用户名和邮箱。配置邮件服务后，从登录页申请邮件设置初始密码；具体见部署文档。
 4. 恢复、构建并启动：
 
 ```bash
@@ -34,3 +34,15 @@ dotnet test Turbo.AI.Server.sln --configuration Release --nologo
 后端测试覆盖语言协商（地区、权重及回退）、中英日聊天参数校验响应与 SVG 验证码结构/内容。不需要系统字体或图像库许可证。
 
 前端在 `turbo-user` 运行 `npm run test:i18n` 检查三语言键集合、插值参数及代码/模板引用，再运行 `npm test -- --watch=false --browsers=ChromeHeadless`。`npm run build` 验证生产预算；Mermaid 从全局脚本迁移为聊天组件按需加载，不能重新加入 `angular.json` 的全局脚本。
+
+## 初始化命令
+
+`--init-db` / `--create-admin` 在 Web 主机构建前执行，不读取 JWT 配置或启动密钥池加载。数据库连接可交互输入，或从 `ConnectionStrings__ciko` 获取。测试覆盖数据库名校验、管理员输入校验、凭据诊断隐藏及嵌入式 SQL，且不需要真实数据库。
+
+部署联调时还应验证完整初始化、角色绑定、密码哈希校验，以及重复命令拒绝覆盖现有数据。不要将数据库凭据或管理员初始密码写入仓库。
+
+## 邮件重置测试
+
+常规测试使用临时 Data Protection provider、模拟邮件发送器和内存存储，覆盖首次设置密码、令牌篡改/过期/一次使用、邮箱匹配、发送冷却和禁用状态，不发送真实邮件。
+
+`PasswordResetDatabaseTests` 是显式运行的 MySQL 集成测试：在临时环境变量 `TURBO_TEST_MYSQL` 设置有建库权限的测试连接，用 `dotnet test --filter FullyQualifiedName~Sql_admin_activation_revokes_sessions_and_password_reset_is_atomic` 执行。测试只在自己生成的 `turbo_reset_test_<guid>` 库运行，结束删除该库，验证 SQL 管理员初始化、密码哈希、会话撤销、并发重置和重复脚本保护。不要将连接凭据写进仓库。

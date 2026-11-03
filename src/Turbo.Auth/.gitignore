@@ -1,3 +1,6 @@
 wwwroot/
 appsettings.Production.json
 appsettings.Development.json
+
+# Local mail credentials, key ring and development logs
+.local/

@@ -8,22 +8,58 @@
 
 ## 数据库初始化
 
-创建空数据库后，按顺序执行以下脚本：
+首次部署只需通过 MySQL 客户端导入 SQL，不需要运行任何 .NET 初始化命令：
 
-```text
-src/Turbo.Auth/Resources/merge/init.sql
-src/Turbo.Auth/Resources/merge/open-initdata.sql
+1. 创建空数据库，依次导入 `src/Turbo.Auth/Resources/merge/init.sql` 和 `open-initdata.sql`。
+2. 在 `src/Turbo.Auth/Resources/account/create-admin.sql` 顶部填写管理员用户名与**真实可收信邮箱**，导入该文件。
+3. 配置下面的邮件服务，正常部署并启动应用，在登录页选择“忘记密码”，输入用户名和邮箱，通过邮件设置初始密码。
+
+管理员 SQL 使用空密码占位，初始无法登录，不需要填写明文或生成哈希。邮件设置密码后自动保存 Identity 密码哈希，管理员拥有 `admin`、`user`、`vip` 角色。脚本不会覆盖已有账户或已有管理员；若已经有管理员，保留原账户，只需确保邮箱可用，即可使用同一邮件重置流程。
+
+### 邮件设置与密码重置
+
+`appsettings.example.json` 已提供 `PasswordReset` 配置结构。默认 `Enabled=false`，未配置时接口返回 503，并显示本地化提示。部署时使用环境变量或密钥存储设置：
+
+```bash
+export PasswordReset__Enabled=true
+export PasswordReset__PublicBaseUrl='https://app.example.com'
+export PasswordReset__SmtpHost='smtp.example.com'
+export PasswordReset__SmtpPort=587
+export PasswordReset__EnableSsl=true
+export PasswordReset__FromAddress='no-reply@example.com'
+export PasswordReset__SmtpUsername='no-reply@example.com'
+export PasswordReset__SmtpPassword='your-smtp-authorization-code'
+export DataProtection__KeyPath='/var/lib/turbo-ai/keys'
 ```
 
-初始化脚本仅面向空数据库，已包含当前应用所需的全部表、列和索引。已有数据库请先备份，再只执行一次 `src/Turbo.Auth/Resources/account/upgrade-auth-sessions.sql`；它会增加账户安全版本和刷新令牌会话表。
+### 实际发件账号如何配置
 
-初始化数据不会写入任何默认账户或明文密码。创建首个管理员（及后续需要通过 SQL 创建的用户）时：
+ASP.NET Core 自动将环境变量中的双下划线映射为配置层级。例如阿里企业邮箱：
 
-1. 在交互式终端运行 `dotnet run --project src/Turbo.Auth/Turbo.Auth.csproj -- --hash-password`，输入密码后复制输出的哈希；输入过程不会回显密码。
-2. 将哈希、用户名和邮箱填入 `src/Turbo.Auth/Resources/account/input.sql` 顶部的变量，再执行该文件。
-3. 首个管理员按文件末尾的注释额外写入 `admin` 和 `vip` 角色；普通用户默认只拥有 `user` 角色。
+```bash
+export PasswordReset__SmtpHost='smtp.qiye.aliyun.com'
+export PasswordReset__SmtpPort=465
+export PasswordReset__EnableSsl=true
+export PasswordReset__SmtpUsername='no-reply@your-domain.com'
+export PasswordReset__FromAddress='no-reply@your-domain.com'
+export PasswordReset__SmtpPassword='your-mailbox-password-or-client-security-password'
+```
 
-不要把明文密码或生成后的账户 SQL 提交到仓库。
+`SmtpUsername` 是 SMTP 认证账号；`FromAddress` 是用户在邮件里看到的实际发件地址，阿里邮箱通常应与认证账号保持一致。管理员的收件地址来自数据库 `Accounts.Email`，与发件地址分开配置。
+
+本地开发也可将这些值放入 Git 已忽略的 `src/Turbo.Auth/appsettings.Development.json` 中的 `PasswordReset` 节。环境变量优先级高于 JSON，修改后重启后端生效。生产环境使用服务管理器、容器或托管平台的环境变量/密钥配置，不要把真实密码写入 `appsettings.example.json` 或提交到仓库。
+
+SMTP 使用 MailKit：`EnableSsl=true` 时，465 使用隐式 TLS，其他端口使用必需的 STARTTLS，不会静默降级为明文；465 不允许关闭 TLS。阿里企业邮箱使用 `smtp.qiye.aliyun.com:465`，用户名为完整邮箱地址。未启用第三方客户端安全密码时使用邮箱登录密码；启用后必须使用独立的客户端安全密码，同时须开放 SMTP/第三方客户端登录权限。`PublicBaseUrl` 为可信的前端部署根地址，生产使用 HTTPS；本地调试允许 localhost HTTP。链接不使用客户端传入的 Host 或跳转地址。
+
+生产环境需为 Data Protection 配置可持久化、受权限保护的密钥目录；多个实例必须共享同一密钥环与应用名。丢失或更换密钥后，尚未使用的重置链接会失效。Redis 共享发送冷却状态；IP 限流按实例执行，反向代理默认按代理 IP 聚合，如需识别客户端 IP，须按实际可信代理配置转发头。
+
+重置链接 30 分钟有效，令牌放在 URL fragment，页面读取后从历史记录移除。重置成功后令牌及之前的其他重置链接失效，旧刷新令牌与访问会话撤销。用户名和邮箱不匹配时也返回同样的申请成功提示；同一组合有一分钟发送冷却，每 IP 15 分钟最多 10 次请求（申请与确认合计）。SMTP 发送失败仅记录错误类型，不记录收件人、链接、令牌或授权码。
+
+### 可选的命令行初始化
+
+仍保留 `--init-db`（空库初始化并创建管理员）和 `--create-admin`（已有库创建首个管理员），作为不使用邮件激活时的可选方式。两者不会启动 Web 服务，也不需要 JWT 配置；可复用 `ConnectionStrings__ciko` 或交互输入数据库信息。发布产物内已嵌入初始化 SQL。
+
+`--init-db` 遇到已有表会拒绝执行；`--create-admin` 遇到已有管理员或重复用户名/邮箱会拒绝执行。MySQL DDL 不能回滚，建表中断时须先检查实际状态，命令不会自动删表重试。`Resources/account/input.sql` 仅保留作手动创建普通用户的参考。
 
 ## 配置服务
 

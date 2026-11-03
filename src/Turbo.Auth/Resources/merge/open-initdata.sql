@@ -1,13 +1,10 @@
 ﻿# data
--- 此脚本不创建带默认密码的账户。请使用 Resources/account/input.sql 创建首个管理员和其他 SQL 用户。
+-- 此脚本不创建带默认密码的账户。请填写并导入 Resources/account/create-admin.sql，通过邮件设置首个管理员密码。
 insert into Roles(roleid, name)
 values (1, 'admin'),
        (2, 'user'),
        (3, 'vip');
-insert into AccountRoles (AccountId, RoleId)
-values (1, 1),
-       (1, 2),
-       (1, 3);
+-- Account-role bindings are created by --init-db / --create-admin after the account exists.
 
 -- ====================================================================
 -- OpenAI 模型（默认仅做参考；老旧/已停止支持的模型已剔除）

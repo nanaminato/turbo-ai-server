@@ -91,3 +91,11 @@ curl -N -X POST http://localhost:5111/api/ai/chat \
 ### 验证码图像格式
 
 `GET /api/verification/generate` 返回 `{img, code, contentType}`。`img` 仍是 base64 字节，图像格式改为 `image/svg+xml`。前端应根据 `contentType` 构造 data URL；与旧服务端联调时缺省按 `image/jpeg` 处理。SVG 使用客户端字体，后端不再依赖 ImageSharp 或系统字体。
+
+## 邮件设置与重置密码
+
+- `POST /api/auth/password-reset/request`：匿名请求，JSON `{username, email}`，匹配账户后发送设置密码链接。无论是否匹配都返回 HTTP 202 与 `code: reset_requested`。
+- `POST /api/auth/password-reset/confirm`：匿名请求，JSON `{token, newPassword, confirmPassword}`，密码须为 8–20 字符且确认一致。成功返回 204，无效/过期/已使用链接返回 400 与 `code: reset_invalid`。
+- 未启用邮件服务时两者返回 503 与 `code: reset_unavailable`；超出每 IP 限制返回 429。
+
+邮箱只从已存储的账户读取，发件配置与前端地址只从服务端配置读取。链接 30 分钟有效，成功设置密码后所有原登录会话和之前的重置链接失效。无需登录也可激活 SQL 创建的空密码账户，不新增数据库表；已有数据库无需迁移。应用内中英日错误提示和邮件文案随请求语言切换。
