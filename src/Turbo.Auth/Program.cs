@@ -1,3 +1,5 @@
+using Turbo.Auth.Localization;
+using Microsoft.AspNetCore.Localization;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
@@ -78,6 +80,15 @@ builder.Services.AddCors(options => options.AddPolicy("CorsPolicy",
                 .AllowCredentials();
         }
     }));
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    options.SetDefaultCulture("zh");
+    options.AddSupportedCultures("zh", "en", "ja");
+    options.AddSupportedUICultures("zh", "en", "ja");
+    // Only the explicit request header controls API response language.
+    options.RequestCultureProviders = [new AcceptLanguageHeaderRequestCultureProvider()];
+    options.ApplyCurrentCultureToResponseHeaders = true;
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddControllers().AddNewtonsoftJson(options =>
 {
@@ -239,6 +250,7 @@ else
 }
 
 var app = builder.Build();
+app.UseRequestLocalization();
 app.UseExceptionHandler(exceptionApp => exceptionApp.Run(async context =>
 {
     var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
@@ -253,7 +265,8 @@ app.UseExceptionHandler(exceptionApp => exceptionApp.Run(async context =>
     await context.Response.WriteAsJsonAsync(new ProblemDetails
     {
         Status = StatusCodes.Status500InternalServerError,
-        Title = "服务器内部错误",
+        Title = ApiMessages.Get("internal_error"),
+        Extensions = { ["code"] = "internal_error", ["traceId"] = context.TraceIdentifier },
         Instance = context.Request.Path
     });
 }));

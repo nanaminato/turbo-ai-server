@@ -1,3 +1,4 @@
+using Turbo.Auth.Localization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -45,7 +46,7 @@ public class AuthController : Controller
         if (account is null) return Unauthorized();
 
         var issue = await _sessions.CreateSessionAsync(account, body.DeviceName, GetIpAddress(), cancellationToken);
-        return Ok(BuildTokenResponse(account, issue));
+        return Ok(await BuildTokenResponseAsync(account, issue, cancellationToken));
     }
 
     [HttpPost("refresh")]
@@ -56,7 +57,7 @@ public class AuthController : Controller
             cancellationToken);
         if (!rotation.Succeeded) return Unauthorized();
 
-        return Ok(BuildTokenResponse(rotation.Account!, rotation.Issue!));
+        return Ok(await BuildTokenResponseAsync(rotation.Account!, rotation.Issue!, cancellationToken));
     }
 
     [HttpPost("logout")]
@@ -101,22 +102,15 @@ public class AuthController : Controller
 
     [HttpPost("register")]
     [AllowAnonymous]
-    public async Task<IActionResult> Register([FromBody] RegisterBody body)
+    public async Task<IActionResult> Register([FromBody] RegisterBody body, CancellationToken cancellationToken)
     {
-        var count = await _context.Accounts!.Where(u => u.Email == body.Email && u.Username == body.Username)
-            .CountAsync();
-        if (count >= 1) return Conflict("存在相同的Email+用户名组合");
+        var exists = await _context.Accounts!.AnyAsync(
+            u => u.Email == body.Email && u.Username == body.Username, cancellationToken);
+        if (exists) return Conflict(new { code = "account_exists", message = ApiMessages.Get("account_exists") });
 
         var account = new Account { Email = body.Email, Username = body.Username, Password = body.Password };
-        try
-        {
-            await _accountRepository.AddUserAccountAsync(account);
-            return Ok();
-        }
-        catch (Exception)
-        {
-            return BadRequest("服务端错误");
-        }
+        await _accountRepository.AddUserAccountAsync(account);
+        return Ok();
     }
 
     private async Task<Account?> ValidateUserAsync(string username, string password, CancellationToken cancellationToken)
@@ -136,9 +130,9 @@ public class AuthController : Controller
         return account;
     }
 
-    private object BuildTokenResponse(Account account, RefreshTokenIssue issue)
+    private async Task<object> BuildTokenResponseAsync(Account account, RefreshTokenIssue issue, CancellationToken cancellationToken)
     {
-        var accessToken = GenerateAccessToken(account, issue.SessionId);
+        var accessToken = await GenerateAccessTokenAsync(account, issue.SessionId, cancellationToken);
         return new
         {
             Token = accessToken,
@@ -151,12 +145,14 @@ public class AuthController : Controller
         };
     }
 
-    private string GenerateAccessToken(Account account, Guid sessionId)
+    private async Task<string> GenerateAccessTokenAsync(Account account, Guid sessionId, CancellationToken cancellationToken)
     {
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey!));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-        var roles = _context.AccountRoles!.Where(a => a.AccountId == account.AccountId)
-            .Include(role => role.Role).ToList();
+        var roles = await _context.AccountRoles!.AsNoTracking()
+            .Where(a => a.AccountId == account.AccountId)
+            .Select(a => a.Role!.Name!)
+            .ToListAsync(cancellationToken);
         var claims = new List<Claim>
         {
             new(ClaimTypes.Name, account.Username!),
@@ -165,7 +161,7 @@ public class AuthController : Controller
             new("sv", account.SecurityStamp),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
         };
-        roles.ForEach(role => claims.Add(new Claim(ClaimTypes.Role, role.Role!.Name!)));
+        roles.ForEach(role => claims.Add(new Claim(ClaimTypes.Role, role)));
 
         var now = DateTime.UtcNow;
         var token = new JwtSecurityToken(

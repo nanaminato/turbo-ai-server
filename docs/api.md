@@ -81,3 +81,9 @@ curl -N -X POST http://localhost:5111/api/ai/chat \
 - `GET /api/open/model`：获取公开模型列表。
 
 接口的字段以运行中的 Swagger 文档为准；生产环境如需对外发布 OpenAPI，请在反向代理或应用层显式启用并进行访问控制。
+
+## API 响应语言
+
+用户端普通 HTTP 请求与流式聊天请求均传递 `Accept-Language`（`zh`、`en`、`ja`）。界面历史语言值 `jp` 在发送前转换为标准的 `ja`。服务端支持地区标签及语言权重，不支持的语言回退到中文，通过 `Content-Language` 返回实际语言。
+
+当前覆盖全局未处理异常和注册重复账户提示。全局异常返回 ProblemDetails，包含稳定的 `code: internal_error` 和 `traceId`；重复注册返回 HTTP 409 与 `{code: "account_exists", message: "本地化提示"}`。客户端应读取 `message` 或 `title`，不要直接将响应对象拼接成字符串。供应商原始响应与其他控制器的历史文案不在此转换范围内。
