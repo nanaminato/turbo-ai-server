@@ -1,4 +1,5 @@
-﻿using System.Text;
+using Turbo.Auth.Localization;
+using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
@@ -30,7 +31,7 @@ public class APIMartGPTImageController: Controller
         var apiMartKey = _quickModel.GetApiMartKey();
         if (apiMartKey==null)
         {
-            return BadRequest("no api key is available");
+            return BadRequest(ApiMessages.Get("no_api_key"));
         }
         var url = apiMartKey!.BaseUrl+"/v1/images/generations";
         using var client = new HttpClient();
@@ -48,7 +49,7 @@ public class APIMartGPTImageController: Controller
         var apiMartKey = _quickModel.GetApiMartKey();
         if (apiMartKey==null)
         {
-            return BadRequest("no api key is available");
+            return BadRequest(ApiMessages.Get("no_api_key"));
         }
         var url = apiMartKey!.BaseUrl+"/v1/images/generations";
         using var client = new HttpClient();

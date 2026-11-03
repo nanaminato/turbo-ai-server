@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Turbo.Auth.Localization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Turbo.Auth.Controllers.AI.Chat.Models;
 using Turbo.Auth.Application.Chat;
@@ -40,7 +41,7 @@ public class ChatController: Controller
         {
             if (string.IsNullOrWhiteSpace(chatBody.Model))
             {
-                await WriteProblem(StatusCodes.Status400BadRequest, "必须指定 model。");
+                await WriteProblem(StatusCodes.Status400BadRequest, ApiMessages.Get("model_required"));
                 return;
             }
 
@@ -94,12 +95,12 @@ public class ChatController: Controller
         catch (KeyNotFoundException exception)
         {
             _logger.LogWarning(exception, "AI chat model is unavailable. TraceId: {TraceId}", HttpContext.TraceIdentifier);
-            await WriteProblem(StatusCodes.Status400BadRequest, "请求的模型当前不可用。");
+            await WriteProblem(StatusCodes.Status400BadRequest, ApiMessages.Get("model_unavailable"));
         }
         catch (NotSupportedException exception)
         {
             _logger.LogWarning(exception, "AI chat provider is unsupported. TraceId: {TraceId}", HttpContext.TraceIdentifier);
-            await WriteProblem(StatusCodes.Status400BadRequest, "该模型的供应商暂不支持聊天。");
+            await WriteProblem(StatusCodes.Status400BadRequest, ApiMessages.Get("chat_unsupported"));
         }
         catch (Exception e)
         {
@@ -107,7 +108,7 @@ public class ChatController: Controller
                 "AI chat request failed. TraceId: {TraceId}; ExceptionType: {ExceptionType}",
                 HttpContext.TraceIdentifier,
                 e.GetType().Name);
-            await WriteProblem(StatusCodes.Status500InternalServerError, "AI 服务暂时不可用。");
+            await WriteProblem(StatusCodes.Status500InternalServerError, ApiMessages.Get("ai_unavailable"));
         }
     }
 

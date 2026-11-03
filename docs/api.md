@@ -86,4 +86,8 @@ curl -N -X POST http://localhost:5111/api/ai/chat \
 
 用户端普通 HTTP 请求与流式聊天请求均传递 `Accept-Language`（`zh`、`en`、`ja`）。界面历史语言值 `jp` 在发送前转换为标准的 `ja`。服务端支持地区标签及语言权重，不支持的语言回退到中文，通过 `Content-Language` 返回实际语言。
 
-当前覆盖全局未处理异常和注册重复账户提示。全局异常返回 ProblemDetails，包含稳定的 `code: internal_error` 和 `traceId`；重复注册返回 HTTP 409 与 `{code: "account_exists", message: "本地化提示"}`。客户端应读取 `message` 或 `title`，不要直接将响应对象拼接成字符串。供应商原始响应与其他控制器的历史文案不在此转换范围内。
+应用内的账户、角色、模型管理、密钥池刷新、聊天参数校验、媒体无可用密钥，以及全局异常文案均使用当前语言。全局异常返回 ProblemDetails，包含稳定的 `code: internal_error` 和 `traceId`；重复注册返回 HTTP 409 与 `{code: "account_exists", message: "本地化提示"}`。客户端应读取 `message` 或 `title`，不要直接将响应对象拼接成字符串。供应商原始响应和框架自动生成的字段校验详情保留原文。
+
+### 验证码图像格式
+
+`GET /api/verification/generate` 返回 `{img, code, contentType}`。`img` 仍是 base64 字节，图像格式改为 `image/svg+xml`。前端应根据 `contentType` 构造 data URL；与旧服务端联调时缺省按 `image/jpeg` 处理。SVG 使用客户端字体，后端不再依赖 ImageSharp 或系统字体。

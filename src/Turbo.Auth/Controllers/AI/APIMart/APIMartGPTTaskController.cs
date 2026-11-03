@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Turbo.Auth.Localization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Distributed;
 using Newtonsoft.Json;
@@ -25,7 +26,7 @@ public class APIMartGPTTaskController: Controller
         var apiMartKey = _quickModel.GetApiMartKey();
         if (apiMartKey==null)
         {
-            return BadRequest("no api key is available");
+            return BadRequest(ApiMessages.Get("no_api_key"));
         }
         var url = apiMartKey!.BaseUrl+$"/v1/tasks/{task_id}?language={language}";
         using var client = new HttpClient();

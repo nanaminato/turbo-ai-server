@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Turbo.Auth.Localization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Turbo.Auth.Models.Accounts;
 using Turbo.Auth.Repositories.Accounts;
@@ -33,7 +34,7 @@ public class RoleController: Controller
         await _roleRepository.DeleteRoleByIdAsync(roleId);
         return Ok(new
         {
-            msg = "删除成功"
+            msg = ApiMessages.Get("deleted")
         });
     }
 
@@ -43,7 +44,7 @@ public class RoleController: Controller
     {
         if (role.RoleId != roleId)
         {
-            return BadRequest("错误的参数，不匹配的实体。");
+            return BadRequest(ApiMessages.Get("invalid_entity"));
         }
 
         try
@@ -51,12 +52,12 @@ public class RoleController: Controller
             await _roleRepository.UpdateRoleAsync(role);
             return Ok(new
             {
-                msg = "更新成功"
+                msg = ApiMessages.Get("updated")
             });
         }
         catch (Exception)
         {
-            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = "角色更新失败" });
+            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = ApiMessages.Get("role_update_failed") });
         }
         
     }
@@ -70,12 +71,12 @@ public class RoleController: Controller
             await _roleRepository.AddRoleAsync(role.Name!);
             return Ok(new
             {
-                msg = "添加成功"
+                msg = ApiMessages.Get("added")
             });
         }
         catch (Exception)
         {
-            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = "角色创建失败" });
+            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = ApiMessages.Get("role_create_failed") });
         }
     }
 

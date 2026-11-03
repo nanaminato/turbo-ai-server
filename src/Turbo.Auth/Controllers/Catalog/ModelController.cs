@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Turbo.Auth.Localization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Turbo.Auth.Models.Suppliers;
 using Turbo.Auth.Repositories.Catalog;
@@ -21,7 +22,7 @@ public class ModelController: Controller
     {
         if (modelId != changeModelStatus.ModelId)
         {
-            return BadRequest("不匹配的参数，操作失败");
+            return BadRequest(ApiMessages.Get("invalid_parameters"));
         }
         try
         {
@@ -29,12 +30,12 @@ public class ModelController: Controller
         }
         catch (Exception e)
         {
-            return BadRequest("操作失败");
+            return BadRequest(ApiMessages.Get("operation_failed"));
         }
 
         return Ok(
         new {
-            msg = "操作成功"
+            msg = ApiMessages.Get("operation_succeeded")
         });
     }
     
@@ -83,7 +84,7 @@ public class ModelController: Controller
     {
         if (model.ModelId != modelId)
         {
-            return BadRequest("不匹配的参数");
+            return BadRequest(ApiMessages.Get("parameters_mismatch"));
         }
 
         try
@@ -93,7 +94,7 @@ public class ModelController: Controller
         }
         catch (Exception e)
         {
-            return BadRequest("执行错误");
+            return BadRequest(ApiMessages.Get("execution_failed"));
         }
     }
 }

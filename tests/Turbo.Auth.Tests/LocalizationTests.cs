@@ -35,5 +35,31 @@ public class LocalizationTests
         await middleware.Invoke(context);
         Assert.That(context.Response.Headers.ContentLanguage.ToString(), Is.EqualTo(language));
     }
+
+    [TestCase("en", "A model must be specified.")]
+    [TestCase("ja", "モデルを指定してください。")]
+    [TestCase("zh", "必须指定 model。")]
+    public async Task Chat_validation_returns_a_localized_problem(string language, string expected)
+    {
+        var previous = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(language);
+            var context = new DefaultHttpContext();
+            context.RequestServices = new ServiceCollection().AddLogging().BuildServiceProvider();
+            context.Response.Body = new MemoryStream();
+            var controller = new Turbo.Auth.Controllers.AI.Chat.ChatController(null!, null!, null!, null!, null!,
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<Turbo.Auth.Controllers.AI.Chat.ChatController>.Instance)
+            {
+                ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = context }
+            };
+            await controller.Chat(new Turbo.Auth.Controllers.AI.Chat.Models.NoModelChatBody());
+            context.Response.Body.Position = 0;
+            using var problem = await System.Text.Json.JsonDocument.ParseAsync(context.Response.Body);
+            Assert.That(context.Response.StatusCode, Is.EqualTo(400));
+            Assert.That(problem.RootElement.GetProperty("title").GetString(), Is.EqualTo(expected));
+        }
+        finally { CultureInfo.CurrentUICulture = previous; }
+    }
 }
 

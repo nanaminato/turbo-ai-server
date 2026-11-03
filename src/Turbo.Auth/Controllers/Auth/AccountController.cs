@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Turbo.Auth.Localization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -50,7 +51,7 @@ public class AccountController: Controller
         }
         catch (Exception)
         {
-            return BadRequest("没有该账号");
+            return BadRequest(ApiMessages.Get("account_missing"));
         }
     }
 
@@ -65,7 +66,7 @@ public class AccountController: Controller
         }
         catch (Exception)
         {
-            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = "账号创建失败" });
+            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = ApiMessages.Get("account_create_failed") });
         }
     }
 
@@ -74,7 +75,7 @@ public class AccountController: Controller
     public async Task<IActionResult> UpdateAccount(AccountBody account, int accountId)
     {
         if (accountId != account.AccountId)
-            return BadRequest("错误的参数，不匹配的实体。");
+            return BadRequest(ApiMessages.Get("invalid_entity"));
         try
         {
             await _accountRepository.UpdateAccountAsync(account);
@@ -82,7 +83,7 @@ public class AccountController: Controller
         }
         catch (Exception)
         {
-            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = "账号更新失败" });
+            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = ApiMessages.Get("account_update_failed") });
         }
     }
 
@@ -100,7 +101,7 @@ public class AccountController: Controller
 
         if (_passwordService.Verify(account, body.CurrentPassword!) == PasswordVerificationState.Invalid)
         {
-            return BadRequest("当前密码不正确。");
+            return BadRequest(ApiMessages.Get("wrong_password"));
         }
 
         account.Password = _passwordService.Hash(account, body.NewPassword!);
@@ -120,7 +121,7 @@ public class AccountController: Controller
         }
         catch (Exception)
         {
-            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = "账号删除失败" });
+            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = ApiMessages.Get("account_delete_failed") });
         }
     }
 }

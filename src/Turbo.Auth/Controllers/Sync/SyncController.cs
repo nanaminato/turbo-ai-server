@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Turbo.Auth.Localization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Turbo.Auth.Application.Routing;
 
@@ -21,11 +22,11 @@ public class SyncController: Controller
         try
         {
             await _keyLoader.LoadKeys();
-            return Ok(new{msg="加载密钥成功"});
+            return Ok(new{msg=ApiMessages.Get("keys_loaded")});
         }
         catch (Exception)
         {
-            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = "加载密钥失败" });
+            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = ApiMessages.Get("keys_load_failed") });
         }
         
     }
