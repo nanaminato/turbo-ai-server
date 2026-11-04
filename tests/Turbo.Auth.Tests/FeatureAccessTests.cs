@@ -10,6 +10,55 @@ namespace Turbo.Auth.Tests;
 public class FeatureAccessTests
 {
     [Test]
+    public void Disabled_unlimited_grants_do_not_relax_enabled_role_limits()
+    {
+        var document = FeaturePolicies.Empty;
+        var roles = document.Features.Single(f => f.Key == "chat").Roles;
+        roles.Add("user", new(true, 2, 10, 1));
+        roles.Add("vip", new(false));
+        var result = FeaturePolicies.Resolve(document, "chat", ["user", "user", "vip", "missing"]);
+        Assert.That(result, Is.EqualTo(new EffectiveFeature("chat", true, 2, 10, 1)));
+        Assert.That(FeaturePolicies.Resolve(document, "chat", ["USER"]).Enabled, Is.False);
+    }
+
+    [TestCase(0)]
+    [TestCase(-1)]
+    public void Rejects_invalid_daily_and_concurrency_limits_even_for_disabled_grants(int limit)
+    {
+        var document = FeaturePolicies.Empty;
+        var roles = document.Features[0].Roles;
+        roles["user"] = new(false, RequestsPerDay: limit);
+        Assert.That(FeaturePolicies.IsValid(document, new HashSet<string> { "user" }), Is.False);
+        roles["user"] = new(false, MaxConcurrent: limit);
+        Assert.That(FeaturePolicies.IsValid(document, new HashSet<string> { "user" }), Is.False);
+    }
+
+    [Test]
+    public void Rejects_duplicate_features_case_colliding_roles_and_null_grants()
+    {
+        var roleNames = new HashSet<string> { "user", "USER" };
+        var document = FeaturePolicies.Empty;
+        document.Features[1] = document.Features[0];
+        Assert.That(FeaturePolicies.IsValid(document, roleNames), Is.False);
+        document = FeaturePolicies.Empty;
+        document.Features[0].Roles.Add("user", new(true));
+        document.Features[0].Roles.Add("USER", new(true));
+        Assert.That(FeaturePolicies.IsValid(document, roleNames), Is.False);
+        document.Features[0].Roles.Remove("USER");
+        document.Features[0].Roles["user"] = null!;
+        Assert.That(FeaturePolicies.IsValid(document, roleNames), Is.False);
+    }
+
+    [Test]
+    public void Accepts_unlimited_and_maximum_integer_limits_and_returns_independent_empty_documents()
+    {
+        var document = FeaturePolicies.Empty;
+        document.Features[0].Roles.Add("user", new(true, int.MaxValue, null, int.MaxValue));
+        Assert.That(FeaturePolicies.IsValid(document, new HashSet<string> { "user" }), Is.True);
+        Assert.That(FeaturePolicies.Empty.Features.All(feature => feature.Roles.Count == 0), Is.True);
+    }
+
+    [Test]
     public void Every_compute_action_has_feature_and_authentication_metadata()
     {
         var assembly = typeof(ImageProxyController).Assembly;
