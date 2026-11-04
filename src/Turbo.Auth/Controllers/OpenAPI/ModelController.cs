@@ -1,22 +1,15 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Turbo.Auth.Contracts.Catalog;
 using Turbo.Auth.Data.Contexts;
-using Turbo.Auth.Models.Suppliers;
 
 namespace Turbo.Auth.Controllers.OpenAPI;
-[ApiController]
-[Route("api/open")]
-public class ModelController
-{
-    private KeyContext _keyContext;
 
-    public ModelController(KeyContext keyContext)
-    {
-        _keyContext = keyContext;
-    }
+[ApiController, Route("api/open")]
+public sealed class ModelController(KeyContext database) : ControllerBase
+{
     [HttpGet("model")]
-    public List<AvailableModel> GetAvailableModels()
-    {
-        return _keyContext.AvailableModels!.ToList();
-    }
-    
+    public async Task<ActionResult<IReadOnlyList<PublicModelResponse>>> GetAvailableModels(CancellationToken token) =>
+        Ok(await database.AvailableModels!.AsNoTracking().Select(model => new PublicModelResponse(model.ModelId,
+            model.Enable, model.Name, model.ModelValue, model.IsChatModel, model.Vision)).ToListAsync(token));
 }

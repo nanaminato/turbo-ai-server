@@ -2,7 +2,7 @@ using Turbo.Auth.Security.FeatureAccess;
 using Turbo.Auth.Localization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Turbo.Auth.Controllers.AI.Chat.Models;
+using Turbo.Auth.Contracts.Chat;
 using Turbo.Auth.Application.Chat;
 using Turbo.Auth.Application.Providers;
 using Turbo.Auth.Application.Routing;
@@ -10,10 +10,11 @@ using Turbo.Auth.Models.AI.Chat;
 using Turbo.Auth.Repositories.Catalog;
 
 namespace Turbo.Auth.Controllers.AI.Chat;
+
 [Authorize]
 [ApiController]
 [Route("api/ai")]
-public class ChatController: Controller
+public class ChatController : Controller
 {
     private readonly IChatService _chat;
     private readonly QuickModel _quickModel;
@@ -30,7 +31,7 @@ public class ChatController: Controller
 
     [FeatureAccess("chat")]
     [HttpPost("chat")]
-    public async Task Chat(NoModelChatBody chatBody)
+    public async Task Chat(ChatCompletionRequest chatBody)
     {
         var started = false;
         var framed = Request.Headers.Accept.ToString().Split(',').Any(value => value.Trim().StartsWith("text/event-stream", StringComparison.OrdinalIgnoreCase));
@@ -41,13 +42,13 @@ public class ChatController: Controller
                 await WriteProblem(400, ApiMessages.Get("model_required"));
                 return;
             }
-            await foreach (var chunk in _chat.Stream(chatBody, HttpContext.RequestAborted))
+            await foreach (var chunk in _chat.Stream(chatBody.ToApplication(), HttpContext.RequestAborted))
             {
                 started = true;
                 if (framed) await ChatStreamWriter.Write(Response, "delta", HttpContext.RequestAborted, text: chunk);
                 else
                 {
-                    Response.ContentType = "text/plain; charset=utf-8";
+                    if (!Response.HasStarted) Response.ContentType = "text/plain; charset=utf-8";
                     await Response.WriteAsync(chunk, HttpContext.RequestAborted);
                     await Response.Body.FlushAsync(HttpContext.RequestAborted);
                 }
@@ -97,16 +98,11 @@ public class ChatController: Controller
     }
 
     [HttpGet("models")]
-    public async Task<List<ChatDisplayModel>> GetChatModels()
+    public async Task<ActionResult<List<ChatModelResponse>>> GetChatModels()
     {
         var models = await _modelRepository.GetChatModelsAsync();
-        return (models ?? [])
+        return Ok((models ?? [])
             .Where(model => _quickModel.IsModelAvailable(model.ModelValue))
-            .Select(m=>new ChatDisplayModel()
-        {
-            ModelName = m.Name,
-            ModelValue = m.ModelValue,
-            Vision = m.Vision
-        }).ToList();
+            .Select(m => new ChatModelResponse(m.Name, m.ModelValue, m.Vision)).ToList());
     }
 }

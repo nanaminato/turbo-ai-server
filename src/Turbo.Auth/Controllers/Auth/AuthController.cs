@@ -1,3 +1,4 @@
+using Turbo.Auth.Contracts.Common;
 using Turbo.Auth.Localization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -7,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Turbo.Auth.Controllers.Auth.Body;
+using Turbo.Auth.Contracts.Auth;
 using Turbo.Auth.Data.Contexts;
 using Turbo.Auth.Models.Accounts;
 using Turbo.Auth.Models.Config;
@@ -38,7 +39,7 @@ public class AuthController : Controller
 
     [HttpPost("login")]
     [AllowAnonymous]
-    public async Task<IActionResult> Login([FromBody] SignBody body, CancellationToken cancellationToken)
+    public async Task<ActionResult<TokenResponse>> Login([FromBody] LoginRequest body, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(body.Username) || string.IsNullOrWhiteSpace(body.Password)) return Unauthorized();
 
@@ -51,7 +52,7 @@ public class AuthController : Controller
 
     [HttpPost("refresh")]
     [AllowAnonymous]
-    public async Task<IActionResult> Refresh([FromBody] RefreshTokenBody body, CancellationToken cancellationToken)
+    public async Task<ActionResult<TokenResponse>> Refresh([FromBody] RefreshTokenRequest body, CancellationToken cancellationToken)
     {
         var rotation = await _sessions.RotateAsync(body.RefreshToken ?? string.Empty, body.DeviceName, GetIpAddress(),
             cancellationToken);
@@ -62,7 +63,7 @@ public class AuthController : Controller
 
     [HttpPost("logout")]
     [AllowAnonymous]
-    public async Task<IActionResult> Logout([FromBody] RefreshTokenBody body, CancellationToken cancellationToken)
+    public async Task<IActionResult> Logout([FromBody] RefreshTokenRequest body, CancellationToken cancellationToken)
     {
         await _sessions.RevokeByRefreshTokenAsync(body.RefreshToken ?? string.Empty, cancellationToken);
         return NoContent();
@@ -81,12 +82,13 @@ public class AuthController : Controller
 
     [HttpGet("sessions")]
     [Authorize]
-    public async Task<IActionResult> Sessions(CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<SessionResponse>>> Sessions(CancellationToken cancellationToken)
     {
         var accountId = GetCurrentAccountId();
         if (accountId is null) return Unauthorized();
 
-        return Ok(await _sessions.GetActiveSessionsAsync(accountId.Value, cancellationToken));
+        return Ok((await _sessions.GetActiveSessionsAsync(accountId.Value, cancellationToken)).Select(session =>
+            new SessionResponse(session.SessionId, session.DeviceName, session.IpAddress, session.CreatedAt, session.LastUsedAt, session.ExpiresAt)).ToList());
     }
 
     [HttpDelete("sessions/{sessionId:guid}")]
@@ -102,11 +104,11 @@ public class AuthController : Controller
 
     [HttpPost("register")]
     [AllowAnonymous]
-    public async Task<IActionResult> Register([FromBody] RegisterBody body, CancellationToken cancellationToken)
+    public async Task<IActionResult> Register([FromBody] RegisterRequest body, CancellationToken cancellationToken)
     {
         var exists = await _context.Accounts!.AnyAsync(
             u => u.Email == body.Email && u.Username == body.Username, cancellationToken);
-        if (exists) return Conflict(new { code = "account_exists", message = ApiMessages.Get("account_exists") });
+        if (exists) return Conflict(new ApiMessageResponse("account_exists", ApiMessages.Get("account_exists")));
 
         var account = new Account { Email = body.Email, Username = body.Username, Password = body.Password };
         await _accountRepository.AddUserAccountAsync(account);
@@ -130,19 +132,11 @@ public class AuthController : Controller
         return account;
     }
 
-    private async Task<object> BuildTokenResponseAsync(Account account, RefreshTokenIssue issue, CancellationToken cancellationToken)
+    private async Task<TokenResponse> BuildTokenResponseAsync(Account account, RefreshTokenIssue issue, CancellationToken cancellationToken)
     {
         var accessToken = await GenerateAccessTokenAsync(account, issue.SessionId, cancellationToken);
-        return new
-        {
-            Token = accessToken,
-            AccessToken = accessToken,
-            RefreshToken = issue.RefreshToken,
-            Id = account.AccountId,
-            SessionId = issue.SessionId,
-            AccessTokenExpiresIn = _jwtSettings.AccessTokenMinutes * 60,
-            RefreshTokenExpiresAt = issue.RefreshTokenExpiresAt
-        };
+        return new TokenResponse(accessToken, accessToken, issue.RefreshToken, account.AccountId,
+            issue.SessionId, _jwtSettings.AccessTokenMinutes * 60, issue.RefreshTokenExpiresAt);
     }
 
     private async Task<string> GenerateAccessTokenAsync(Account account, Guid sessionId, CancellationToken cancellationToken)

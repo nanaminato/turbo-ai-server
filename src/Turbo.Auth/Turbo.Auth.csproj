@@ -14,7 +14,7 @@
 
     <ItemGroup>
         
-        <PackageReference Include="tryAGI.OpenAI" Version="4.2.10" />
+        <PackageReference Include="OpenAI" Version="2.14.0" />
         
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
         <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.11" />
@@ -29,12 +29,12 @@
         <PackageReference Include="MySqlConnector" Version="2.6.2" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+        <PackageReference Include="Swashbuckle.AspNetCore.Newtonsoft" Version="10.2.3" />
         <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.22.0" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
         
-        <PackageReference Include="Anthropic.SDK" Version="5.10.0" />
-        <PackageReference Include="DashScope" Version="0.9.4" />
-        <PackageReference Include="DotnetGeminiSDK" Version="2.0.0" />
+        <PackageReference Include="Anthropic" Version="13.4.0" />
+        <PackageReference Include="Google.GenAI" Version="1.28.0" />
         
     </ItemGroup>
 

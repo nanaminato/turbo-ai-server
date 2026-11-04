@@ -1,3 +1,4 @@
+using Turbo.Auth.Contracts.Auth;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
@@ -11,12 +12,12 @@ namespace Turbo.Auth.Controllers.Auth;
 public class VerificationController : ControllerBase
 {
     [HttpGet("generate")]
-    public IActionResult GetCaptcha()
+    public ActionResult<CaptchaResponse> GetCaptcha()
     {
         const string alphabet = "ABCDEFGHIJKMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         var code = new string(Enumerable.Range(0, 6)
             .Select(_ => alphabet[RandomNumberGenerator.GetInt32(alphabet.Length)]).ToArray());
-        return Ok(new { img = GenerateCaptchaImage(code), code, contentType = "image/svg+xml" });
+        return Ok(new CaptchaResponse(GenerateCaptchaImage(code), code, "image/svg+xml"));
     }
 
     [HttpGet("check-token")]

@@ -1,114 +1,41 @@
-using Turbo.Auth.Localization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Turbo.Auth.Models.Suppliers;
+using Turbo.Auth.Contracts.Catalog;
+using Turbo.Auth.Contracts.Common;
+using Turbo.Auth.Localization;
 using Turbo.Auth.Repositories.Catalog;
 
 namespace Turbo.Auth.Controllers.Catalog;
-[ApiController]
-[Authorize(Policy = "admin")]
-[Route("api/[controller]")]
-public class ModelController: Controller
+
+[ApiController, Authorize(Policy = "admin"), Route("api/[controller]")]
+public sealed class ModelController(IModelRepository models) : ControllerBase
 {
-    private IModelRepository _modelRepository;
-
-    public ModelController(IModelRepository modelRepository)
+    [HttpPost("changeModelStatus/{modelId:int:min(1)}")]
+    public async Task<ActionResult<MessageResponse>> ChangeModelStatus(int modelId, ModelStatusRequest request)
     {
-        _modelRepository = modelRepository;
+        if (modelId != request.ModelId) return BadRequest(ApiProblems.Create(400, "invalid_parameters"));
+        await models.SetEnableStatus(modelId, request.Enable);
+        return Ok(new MessageResponse(ApiMessages.Get("operation_succeeded")));
     }
-
-    [HttpPost("changeModelStatus/{modelId}")]
-    public async Task<IActionResult> ChangeModelStatus(int modelId,ChangeModelStatus changeModelStatus)
-    {
-        if (modelId != changeModelStatus.ModelId)
-        {
-            return BadRequest(ApiMessages.Get("invalid_parameters"));
-        }
-        try
-        {
-            await _modelRepository.SetEnableStatus(changeModelStatus.ModelId, changeModelStatus.Enable);
-        }
-        catch (Exception e)
-        {
-            return BadRequest(ApiMessages.Get("operation_failed"));
-        }
-
-        return Ok(
-        new {
-            msg = ApiMessages.Get("operation_succeeded")
-        });
-    }
-    
-
     [HttpGet]
-    public async Task<List<Model>?> GetModelsWithKey([FromQuery] int? keyId)
+    public async Task<ActionResult<IReadOnlyList<ModelResponse>>> GetModelsWithKey([FromQuery] int? keyId)
     {
-        if (keyId == null)
-        {
-            return await _modelRepository.GetModelsAsync();
-        }
-
-        return await _modelRepository.GetModelsOfKeyAsync(keyId.Value);
+        var result = keyId.HasValue ? await models.GetModelsOfKeyAsync(keyId.Value) : await models.GetModelsAsync();
+        return Ok((result ?? []).Select(ModelResponse.From).ToList());
     }
-
-    [HttpDelete("{modelId}")]
-    public async Task<IActionResult> DeleteModel(int modelId)
-    {
-        try
-        {
-            await _modelRepository.DeleteModelByIdAsync(modelId);
-            return Ok();
-        }
-        catch (Exception e)
-        {
-            return BadRequest();
-        }
-    }
-
+    [HttpDelete("{modelId:int:min(1)}")]
+    public async Task<IActionResult> DeleteModel(int modelId) { await models.DeleteModelByIdAsync(modelId); return Ok(); }
     [HttpPost]
-    public async Task<IActionResult> AddModel(Model model)
+    public async Task<IActionResult> AddModel(ModelWriteRequest request)
     {
-        try
-        {
-            await _modelRepository.AddModelAsync(model);
-            return Ok();
-        }
-        catch (Exception e)
-        {
-            return BadRequest();
-        }
+        if (request.ModelId != 0) return BadRequest(ApiProblems.Create(400, "invalid_entity"));
+        await models.AddModelAsync(request.ToEntity()); return Ok();
     }
-
-    [HttpPut("{modelId}")]
-    public async Task<IActionResult> UpdateModel(Model model,int modelId)
+    [HttpPut("{modelId:int:min(1)}")]
+    public async Task<IActionResult> UpdateModel(ModelWriteRequest request, int modelId)
     {
-        if (model.ModelId != modelId)
-        {
-            return BadRequest(ApiMessages.Get("parameters_mismatch"));
-        }
-
-        try
-        {
-            await _modelRepository.UpdateModelAsync(model);
-            return Ok();
-        }
-        catch (Exception e)
-        {
-            return BadRequest(ApiMessages.Get("execution_failed"));
-        }
-    }
-}
-
-public class ChangeModelStatus
-{
-    public int ModelId
-    {
-        get;
-        set;
-    }
-    public bool Enable
-    {
-        get;
-        set;
+        if (request.ModelId != 0 && request.ModelId != modelId) return BadRequest(ApiProblems.Create(400, "parameters_mismatch"));
+        var model = request.ToEntity(); model.ModelId = modelId;
+        await models.UpdateModelAsync(model); return Ok();
     }
 }

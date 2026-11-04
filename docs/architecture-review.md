@@ -59,3 +59,5 @@ SQLite 用于本地关系数据库事务测试，浏览器使用真实 IndexedDB
 ### 后续 MySQL 验证
 
 2026-11-04：真实 MySQL 8.4.13 集成测试 10 项通过；普通 Release 回归 100 项通过。全新建库与从 e01436d 结构升级均已验证，最终完整运行创建的 11 个临时库全部清理。发现并修复复用 EF 上下文时版本缓存导致的重复主键问题。详细记录见后端 `docs/mysql-verification.md`。
+
+后续 Controller 契约隔离及官方 SDK 迁移见 [实施记录](api-contracts-and-sdks.md)，供应商适配器实现以该记录为准。

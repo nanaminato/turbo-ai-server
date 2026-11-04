@@ -119,7 +119,7 @@ builder.Services.AddRateLimiter(options =>
         { PermitLimit = 10, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
 });
 builder.Services.AddSignalR();
-builder.Services.AddSwaggerGen();
+Turbo.Auth.Configuration.ApiDocumentation.AddApiDocumentation(builder.Services);
 var connectionString = builder.Configuration.GetConnectionString("ciko");
 if (string.IsNullOrWhiteSpace(connectionString))
 {
@@ -158,7 +158,7 @@ builder.Services.AddHttpClient("AiProvider", client =>
 });
 builder.Services.AddScoped<IIdGetter, IdGetter>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
-builder.Services.AddScoped<IAccountRoleRepository,AccountRoleRepository>();
+builder.Services.AddScoped<IAccountRoleRepository, AccountRoleRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IKeyRepository, KeyRepository>();
 builder.Services.AddScoped<IModelRepository, ModelRepository>();
@@ -185,6 +185,7 @@ builder.Services.AddScoped<IChatHandler, AnthropicChatHandler>();
 builder.Services.AddScoped<IChatHandler, AlibabaChatHandler>();
 builder.Services.AddScoped<IChatHandlerObtain, ChatHandlerObtain>();
 builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<Turbo.Auth.Application.Media.IMediaService, Turbo.Auth.Application.Media.MediaService>();
 builder.Services.AddScoped<Turbo.Auth.Application.Providers.OpenAiClientFactory>();
 builder.Services.AddScoped<Turbo.Auth.Application.Sync.DataSyncService>();
 builder.Services.AddSingleton<IAccountPasswordService, AccountPasswordService>();

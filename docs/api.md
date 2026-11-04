@@ -129,3 +129,7 @@ data: {"type":"completed","text":null,"code":null}
 - 数据、版本、删除事件和操作幂等记录在同一账户事务内提交；客户端也必须在本地事务提交数据和游标后再读取下一页。冲突采用服务端接收顺序的最后写入，不提供字段级合并。
 
 首次升级导入、旧记录删除歧义、保留策略及上线步骤见 [架构实施记录](architecture-review.md)。
+
+## 请求与响应契约
+
+请求与响应模型集中于 `Contracts/`，不直接公开数据库关系或供应商 SDK 类型。字段命名保持现有 JSON 协议；数据注解校验失败由 ApiController 提前返回 400 ValidationProblemDetails。字段白名单、ID 校验、SDK 返回值映射和兼容限制见 [Controller 契约与官方 SDK](api-contracts-and-sdks.md)。

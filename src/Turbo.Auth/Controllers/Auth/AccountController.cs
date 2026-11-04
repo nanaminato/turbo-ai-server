@@ -1,9 +1,10 @@
+using Turbo.Auth.Contracts.Common;
 using Turbo.Auth.Localization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using Turbo.Auth.Controllers.Auth.Body;
+using Turbo.Auth.Contracts.Auth;
 using Turbo.Auth.Data.Contexts;
 using Turbo.Auth.Repositories.Accounts;
 using Turbo.Auth.Security;
@@ -12,7 +13,7 @@ namespace Turbo.Auth.Controllers.Auth;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AccountController: Controller
+public class AccountController : Controller
 {
     private readonly IAccountRepository _accountRepository;
     private readonly AuthContext _context;
@@ -29,7 +30,7 @@ public class AccountController: Controller
     }
     [HttpGet]
     [Authorize(Policy = "admin")]
-    public async Task<IActionResult> GetAccountsWithRole([FromQuery] int? roleId)
+    public async Task<ActionResult<IReadOnlyList<AccountResponse>>> GetAccountsWithRole([FromQuery] int? roleId)
     {
         if (roleId == null)
         {
@@ -42,7 +43,7 @@ public class AccountController: Controller
     }
     [HttpGet("{id}")]
     [Authorize(Policy = "admin")]
-    public async Task<IActionResult> GetAccountById(int id)
+    public async Task<ActionResult<AccountResponse>> GetAccountById(int id)
     {
         try
         {
@@ -57,8 +58,9 @@ public class AccountController: Controller
 
     [HttpPost]
     [Authorize(Policy = "admin")]
-    public async Task<IActionResult> AddAccount(AccountBody account)
+    public async Task<IActionResult> AddAccount(AccountWriteRequest account)
     {
+        if (account.AccountId != 0) return BadRequest(ApiProblems.Create(400, "invalid_entity"));
         try
         {
             await _accountRepository.AddAccountAsync(account);
@@ -72,7 +74,7 @@ public class AccountController: Controller
 
     [HttpPut("{accountId}")]
     [Authorize(Policy = "admin")]
-    public async Task<IActionResult> UpdateAccount(AccountBody account, int accountId)
+    public async Task<IActionResult> UpdateAccount(AccountWriteRequest account, int accountId)
     {
         if (accountId != account.AccountId)
             return BadRequest(ApiMessages.Get("invalid_entity"));
@@ -89,7 +91,7 @@ public class AccountController: Controller
 
     [HttpPost("change-password")]
     [Authorize]
-    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordBody body,
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest body,
         CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);

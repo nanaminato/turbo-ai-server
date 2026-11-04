@@ -1,8 +1,8 @@
-﻿using Turbo.Auth.Models.Sync.Messages;
+﻿using Turbo.Auth.Contracts.Files;
 
 namespace Turbo.Auth.Controllers.Files;
 
 public interface IFileContentExtractor
 {
-    string Extractor(FileAdds fileAdds);
+    string Extractor(FileExtractionRequest fileAdds);
 }

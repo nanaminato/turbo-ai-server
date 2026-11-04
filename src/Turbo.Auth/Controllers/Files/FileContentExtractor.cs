@@ -1,53 +1,25 @@
-﻿using Turbo.Auth.Models.Sync.Messages;
+using Turbo.Auth.Contracts.Files;
 using Turbo.Kit.Pdf;
 using Turbo.Kit.Text;
 using Turbo.Kit.Word;
-
 namespace Turbo.Auth.Controllers.Files;
 
-public class FileContentExtractor: IFileContentExtractor
+public sealed class FileContentExtractor(IPdfDocumentProcessor pdf, IWordDocumentProcessor word,
+    ITextDocumentProcessor text) : IFileContentExtractor
 {
-    private IPdfDocumentProcessor _pdfDocumentProcessor;
-    private IWordDocumentProcessor _wordDocumentProcessor;
-    private ITextDocumentProcessor _textDocumentProcessor;
-    public FileContentExtractor(IPdfDocumentProcessor pdfDocumentProcessor,
-        IWordDocumentProcessor wordDocumentProcessor, ITextDocumentProcessor textDocumentProcessor)
+    public string Extractor(FileExtractionRequest file)
     {
-        _pdfDocumentProcessor = pdfDocumentProcessor;
-        _wordDocumentProcessor = wordDocumentProcessor;
-        _textDocumentProcessor = textDocumentProcessor;
-    }
-    public string Extractor(FileAdds fileAdds)
-    {
-        var fileBytes = Convert.FromBase64String(fileAdds.FileContent!);
-
-        var loc = "resources//uploads//"+Guid.NewGuid() + fileAdds.FileName;
-        var parentDirectory = Path.GetDirectoryName(loc);
-
-        // 检查父目录是否存在，如果不存在则创建
-        if (!Directory.Exists(parentDirectory))
+        var bytes = Convert.FromBase64String(file.FileContent);
+        var extension = Path.GetExtension(Path.GetFileName(file.FileName)).ToLowerInvariant();
+        var path = Path.Combine(Path.GetTempPath(), "turbo-extract-" + Guid.NewGuid().ToString("N") + extension);
+        try
         {
-            Directory.CreateDirectory(parentDirectory!);
-            Console.WriteLine("父目录已创建");
+            File.WriteAllBytes(path, bytes);
+            if (file.FileType == "application/msword" || extension is ".doc" or ".docx") return word.Process(path);
+            if (file.FileType == "application/pdf" || extension == ".pdf") return pdf.Process(path);
+            if (file.FileType == "text/plain" || bytes.Length < 5 * 1024) return text.Process(path);
+            throw new NotSupportedException();
         }
-        using (var fileStream = new FileStream(loc, FileMode.Create))
-        {
-            fileStream.Write(fileBytes, 0, fileBytes.Length);
-        }
-        if (fileAdds.FileType == "application/msword" || fileAdds.FileName!.EndsWith(".docx") ||
-            fileAdds.FileName!.EndsWith(".doc"))
-        {
-            return _wordDocumentProcessor.Process(loc);
-        }
-        if (fileAdds.FileType == "application/pdf" || fileAdds.FileName!.EndsWith(".pdf"))
-        {
-            return _pdfDocumentProcessor.Process(loc);
-        }
-        if (fileAdds.FileType == "text/plain"||fileAdds.FileSize / 1024 < 5)
-        {
-            return _textDocumentProcessor.Process(loc);
-        }
-
-        throw new NotSupportedException();
+        finally { File.Delete(path); }
     }
 }

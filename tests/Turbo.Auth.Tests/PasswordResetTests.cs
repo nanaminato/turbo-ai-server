@@ -1,3 +1,4 @@
+using Turbo.Auth.Contracts.Auth;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
@@ -116,15 +117,20 @@ public class PasswordResetTests
     [TestCase("https://user:pass@app.example.com", false)]
     public void Mail_link_origin_must_be_trusted_configuration(string origin, bool valid)
     {
-        Assert.That(new PasswordResetOptions {Enabled = true, PublicBaseUrl = origin, SmtpHost = "smtp.example.com",
-            FromAddress = "no-reply@example.com"}.IsValid(), Is.EqualTo(valid));
+        Assert.That(new PasswordResetOptions
+        {
+            Enabled = true,
+            PublicBaseUrl = origin,
+            SmtpHost = "smtp.example.com",
+            FromAddress = "no-reply@example.com"
+        }.IsValid(), Is.EqualTo(valid));
     }
 
     [Test]
     public async Task Disabled_email_reset_returns_unavailable_without_contacting_the_mailbox()
     {
         var controller = new PasswordResetController(_service, OptionsFactory.Create(new PasswordResetOptions()));
-        var result = (ObjectResult)await controller.RequestReset(new ResetRequest {Username = "admin", Email = "admin@example.com"}, default);
+        var result = (ObjectResult)await controller.RequestReset(new PasswordResetRequest { Username = "admin", Email = "admin@example.com" }, default);
         Assert.That(result.StatusCode, Is.EqualTo(503)); Assert.That(_sender.Sent, Is.Zero);
     }
 
@@ -134,14 +140,21 @@ public class PasswordResetTests
     [TestCase(25, false, MailKit.Security.SecureSocketOptions.None)]
     public void Smtp_transport_uses_the_required_tls_protocol(int port, bool ssl, MailKit.Security.SecureSocketOptions expected)
     {
-        Assert.That(PasswordResetEmailSender.SocketOptions(new PasswordResetOptions {SmtpPort = port, EnableSsl = ssl}), Is.EqualTo(expected));
+        Assert.That(PasswordResetEmailSender.SocketOptions(new PasswordResetOptions { SmtpPort = port, EnableSsl = ssl }), Is.EqualTo(expected));
     }
 
     [Test]
     public void Implicit_tls_port_cannot_be_configured_as_cleartext()
     {
-        var options = new PasswordResetOptions {Enabled = true, PublicBaseUrl = "https://app.example.com",
-            SmtpHost = "smtp.qiye.aliyun.com", SmtpPort = 465, EnableSsl = false, FromAddress = "no-reply@example.com"};
+        var options = new PasswordResetOptions
+        {
+            Enabled = true,
+            PublicBaseUrl = "https://app.example.com",
+            SmtpHost = "smtp.qiye.aliyun.com",
+            SmtpPort = 465,
+            EnableSsl = false,
+            FromAddress = "no-reply@example.com"
+        };
         Assert.That(options.IsValid(), Is.False);
         options.EnableSsl = true;
         Assert.That(options.IsValid(), Is.True);
@@ -159,7 +172,7 @@ public class PasswordResetTests
 
     private sealed class FakeStore : IPasswordResetStore
     {
-        public Account Account = new() {AccountId = 7, Username = "admin", Email = "admin@example.com", Password = ""};
+        public Account Account = new() { AccountId = 7, Username = "admin", Email = "admin@example.com", Password = "" };
         public int Updates;
         public Task<Account?> FindAsync(string username, string email, CancellationToken cancellationToken) =>
             Task.FromResult<Account?>(username == Account.Username && email == Account.Email ? Account : null);

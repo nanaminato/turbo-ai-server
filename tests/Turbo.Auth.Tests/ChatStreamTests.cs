@@ -9,7 +9,7 @@ using Turbo.Auth.Application.Chat;
 using Turbo.Auth.Application.Providers;
 using Turbo.Auth.Application.Routing;
 using Turbo.Auth.Controllers.AI.Chat;
-using Turbo.Auth.Controllers.AI.Chat.Models;
+using Turbo.Auth.Contracts.Chat;
 using Turbo.Auth.Models.Suppliers;
 
 namespace Turbo.Auth.Tests;
@@ -24,8 +24,8 @@ public class ChatStreamTests
         context.Response.Body = new MemoryStream();
         context.Request.Headers.Accept = "text/event-stream";
         var controller = new ChatController(new FakeChat(fail), null!, null!, NullLogger<ChatController>.Instance)
-            { ControllerContext = new ControllerContext { HttpContext = context } };
-        await controller.Chat(new NoModelChatBody { Model = "test" });
+        { ControllerContext = new ControllerContext { HttpContext = context } };
+        await controller.Chat(new ChatCompletionRequest { Model = "test" });
         context.Response.Body.Position = 0;
         var events = await new StreamReader(context.Response.Body).ReadToEndAsync();
         Assert.That(events, Does.Contain("\"type\":\"delta\""));
@@ -40,8 +40,8 @@ public class ChatStreamTests
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
         var controller = new ChatController(new FakeChat(false), null!, null!, NullLogger<ChatController>.Instance)
-            {ControllerContext = new ControllerContext {HttpContext = context}};
-        await controller.Chat(new NoModelChatBody {Model = "test"});
+        { ControllerContext = new ControllerContext { HttpContext = context } };
+        await controller.Chat(new ChatCompletionRequest { Model = "test" });
         context.Response.Body.Position = 0;
         Assert.That(await new StreamReader(context.Response.Body).ReadToEndAsync(), Is.EqualTo("你好\nreply"));
     }
@@ -73,19 +73,25 @@ public class ChatStreamTests
     public async Task Unsupported_primary_provider_can_fall_back_before_any_output()
     {
         var routes = new QuickModel();
-        routes.Transfer(new QuickModel {Quick = new() { ["test"] = [
+        routes.Transfer(new QuickModel
+        {
+            Quick = new()
+            {
+                ["test"] = [
             new WeightKey {RouteId = 1, Priority = 0, Weight = 1, ProviderModelValue = "test",
                 SupplierKey = new SupplierKey {RequestIdentifier = (int)HandlerType.Twitter}},
             new WeightKey {RouteId = 2, Priority = 1, Weight = 1, ProviderModelValue = "test",
                 SupplierKey = new SupplierKey {RequestIdentifier = (int)HandlerType.Openai}}
-        ]}});
+        ]
+            }
+        });
         var handler = new FailingHandler(false);
         var service = new ChatService(new ChatHandlerObtain([handler]), routes,
             new RouteHealthTracker(Microsoft.Extensions.Options.Options.Create(new AiRoutingOptions())),
             new PlayMixModelBacker(), NullLogger<ChatService>.Instance);
         var output = new List<string>();
-        await foreach (var text in service.Stream(new ChatRequest {Model = "test"}, default)) output.Add(text);
-        Assert.That(output, Is.EqualTo(new[] {"fallback"}));
+        await foreach (var text in service.Stream(new ChatRequest { Model = "test" }, default)) output.Add(text);
+        Assert.That(output, Is.EqualTo(new[] { "fallback" }));
         Assert.That(handler.Calls, Is.EqualTo(1));
     }
 
@@ -96,7 +102,8 @@ public class ChatStreamTests
         var handler = new OpenAiChatHandler(new OpenAiClientFactory(new StubFactory(new HttpClient(transport))));
         await foreach (var _ in handler.Stream(new ChatRequest
         {
-            Model = "logical", Messages = [new Turbo.Auth.Application.Chat.Message { Role = "user", Content = "hello" }]
+            Model = "logical",
+            Messages = [new Turbo.Auth.Application.Chat.Message { Role = "user", Content = "hello" }]
         }, new ModelKey { Model = "upstream", SupplierKey = new SupplierKey { ApiKey = "test", BaseUrl = "https://test.invalid/v1" } }, default)) { }
         Assert.That(transport.RequestUri?.Host, Is.EqualTo("test.invalid"));
         Assert.That(transport.Body, Does.Contain("upstream"));
@@ -130,16 +137,17 @@ public class ChatStreamTests
                 data: {"type":"message_stop"}
 
                 """ + "\n\n",
-            _ => "data: {\"output\":{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"hello\"},\"finish_reason\":\"stop\"}]},\"request_id\":\"test\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}\n\n"
+            _ => "data: {\"id\":\"test\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"test\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hello\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"
         };
         var factory = new StubFactory(new HttpClient(new StubTransport(body)));
-        IChatHandler handler = provider switch {
+        IChatHandler handler = provider switch
+        {
             HandlerType.Google => new GoogleChatHandler(factory),
             HandlerType.Anthropic => new AnthropicChatHandler(factory),
-            _ => new AlibabaChatHandler(factory)
+            _ => new AlibabaChatHandler(new OpenAiClientFactory(factory))
         };
-        var request = new ChatRequest {Model = "test", Messages = [new Turbo.Auth.Application.Chat.Message {Role = "user", Content = "hello"}]};
-        var route = new ModelKey {Model = "test", SupplierKey = new SupplierKey {ApiKey = "test", BaseUrl = "https://test.invalid"}};
+        var request = new ChatRequest { Model = "test", Messages = [new Turbo.Auth.Application.Chat.Message { Role = "user", Content = "hello" }] };
+        var route = new ModelKey { Model = "test", SupplierKey = new SupplierKey { ApiKey = "test", BaseUrl = "https://test.invalid" } };
         var chunks = new List<string>();
         await foreach (var text in handler.Stream(request, route, default)) chunks.Add(text);
         Assert.That(string.Concat(chunks), Is.EqualTo("hello"));
@@ -149,9 +157,10 @@ public class ChatStreamTests
     public void Openai_rejects_an_empty_upstream_eof()
     {
         var handler = new OpenAiChatHandler(new OpenAiClientFactory(new StubFactory(new HttpClient(new StubTransport("")))));
-        Assert.ThrowsAsync<EndOfStreamException>(async () => {
-            await foreach (var _ in handler.Stream(new ChatRequest {Messages = []},
-                new ModelKey {Model = "test", SupplierKey = new SupplierKey {ApiKey = "test", BaseUrl = "https://test.invalid"}}, default)) { }
+        Assert.ThrowsAsync<EndOfStreamException>(async () =>
+        {
+            await foreach (var _ in handler.Stream(new ChatRequest { Messages = [] },
+                new ModelKey { Model = "test", SupplierKey = new SupplierKey { ApiKey = "test", BaseUrl = "https://test.invalid" } }, default)) { }
         });
     }
 

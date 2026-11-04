@@ -53,7 +53,7 @@ public class LocalizationTests
             {
                 ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = context }
             };
-            await controller.Chat(new Turbo.Auth.Controllers.AI.Chat.Models.NoModelChatBody());
+            await controller.Chat(new Turbo.Auth.Contracts.Chat.ChatCompletionRequest());
             context.Response.Body.Position = 0;
             using var problem = await System.Text.Json.JsonDocument.ParseAsync(context.Response.Body);
             Assert.That(context.Response.StatusCode, Is.EqualTo(400));

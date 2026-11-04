@@ -27,9 +27,10 @@ Turbo.Auth (ASP.NET Core)
 src/
 ├── Turbo.Auth/          ASP.NET Core 服务
 │   ├── Application/     聊天适配器、供应商目录和模型路由
+│   ├── Contracts/       HTTP 请求、响应与输入校验
 │   ├── Controllers/     HTTP 端点，按业务能力分组
 │   ├── Data/Contexts/   Entity Framework Core 上下文
-│   ├── Models/          领域实体与请求/响应模型
+│   ├── Models/          数据库实体与内部模型
 │   └── Repositories/    数据访问实现
 └── Turbo.Kit/           文档文本提取类库
 tests/
@@ -65,6 +66,8 @@ docs/                    架构、接口、部署和开发文档
 
 前端保有独立聊天草稿及持久化操作队列。首次返回完整快照，后续按游标分页；客户端提交新数据与游标使用一个本地事务，并拒绝其他标签页已经超越的响应。
 
-`IChatHandler` 不再依赖 Controller 请求模型或 `HttpResponse`。OpenAI 聊天与媒体通过 `OpenAiClientFactory` 注入实际命名客户端；Google 使用统一的原生 SSE 适配路径，保留配置的 BaseUrl 和系统指令；Anthropic 与 DashScope 同样使用受管理的传输和取消令牌。适配器必须检查终止标记，不能将提前 EOF 作为成功。
+`IChatHandler` 不再依赖 Controller 请求模型或 `HttpResponse`。OpenAI 聊天与媒体通过 `OpenAiClientFactory` 注入实际命名客户端；Google 与 Anthropic 使用官方 SDK 的类型化流接口，保留配置的 BaseUrl 和系统指令；Alibaba 通过官方 OpenAI-compatible 协议复用 OpenAI 客户端。所有适配器使用受管理的传输和取消令牌。适配器必须检查终止标记，不能将提前 EOF 作为成功。
 
 实施明细、协议兼容、配置失效与验证限制见 [架构审查与实施记录](architecture-review.md)。
+
+Controller 请求与响应从 EF / SDK 模型分离，媒体调用由 MediaService 处理，实施范围与兼容性见 [Controller 契约与官方 SDK](api-contracts-and-sdks.md)。

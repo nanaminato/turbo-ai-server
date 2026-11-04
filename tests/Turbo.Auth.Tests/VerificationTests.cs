@@ -11,8 +11,8 @@ public class VerificationTests
     [Test]
     public void Captcha_returns_a_self_contained_svg_matching_the_code()
     {
-        var result = (OkObjectResult)new VerificationController().GetCaptcha();
-        var response = JsonSerializer.SerializeToElement(result.Value);
+        var result = (OkObjectResult)new VerificationController().GetCaptcha().Result!;
+        var response = JsonSerializer.SerializeToElement(result.Value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.That(response.GetProperty("contentType").GetString(), Is.EqualTo("image/svg+xml"));
         var code = response.GetProperty("code").GetString()!;
         Assert.That(code, Does.Match("^[A-Za-z0-9]{6}$"));

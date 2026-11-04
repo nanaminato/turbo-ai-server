@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Turbo.Auth.Controllers.AI.Chat.Models;
+using Turbo.Auth.Contracts.Chat;
 
 namespace Turbo.Auth.Tests;
 
@@ -16,8 +16,8 @@ public class ChatDefaultsTests
              "reasoning_effort":"high","verbosity":"high","thinking_budget":512,
              "messages":[{"role":"user","content":"hello"}]}
             """;
-        var body = JsonConvert.DeserializeObject<NoModelChatBody>(legacy)!;
-        var forwarded = JObject.FromObject(body);
+        var body = JsonConvert.DeserializeObject<ChatCompletionRequest>(legacy)!;
+        var forwarded = JObject.FromObject(body, JsonSerializer.Create(new JsonSerializerSettings { ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver() }));
         Assert.That(forwarded.Properties().Select(property => property.Name),
             Is.EquivalentTo(new[] { "model", "messages", "stream", "vision" }));
         Assert.That(body.Model, Is.EqualTo("gpt-5"));

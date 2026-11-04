@@ -1,13 +1,13 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Turbo.Auth.Data.Contexts;
-using Turbo.Auth.Controllers.Auth.Body;
+using Turbo.Auth.Contracts.Auth;
 using Turbo.Auth.Exceptions;
 using Turbo.Auth.Models.Accounts;
 using Turbo.Auth.Security;
 
 namespace Turbo.Auth.Repositories.Accounts;
 
-public class AccountRepository: IAccountRepository
+public class AccountRepository : IAccountRepository
 {
     private AuthContext _authContext;
     private readonly IAccountPasswordService _passwordService;
@@ -50,7 +50,7 @@ public class AccountRepository: IAccountRepository
         }
     }
 
-    public async Task AddAccountAsync(AccountBody accountBody)
+    public async Task AddAccountAsync(AccountWriteRequest accountBody)
     {
         try
         {
@@ -67,7 +67,7 @@ public class AccountRepository: IAccountRepository
             await _authContext.Accounts!.AddAsync(account);
             await _authContext.SaveChangesAsync();
             if (accountBody.UserRoles == null) return;
-            foreach (var role in accountBody.UserRoles!)
+            foreach (var role in accountBody.UserRoles ?? [])
             {
                 var accountRole = new AccountRole()
                 {
@@ -87,7 +87,7 @@ public class AccountRepository: IAccountRepository
         }
     }
 
-    public async Task UpdateAccountAsync(AccountBody accountBody)
+    public async Task UpdateAccountAsync(AccountWriteRequest accountBody)
     {
         try
         {
@@ -104,14 +104,13 @@ public class AccountRepository: IAccountRepository
             }
             account.Email = accountBody.Email;
             await _authContext.SaveChangesAsync();
-            accountBody.UserRoles ??= new List<Role>();
             _authContext.AccountRoles!.RemoveRange(
                 await _authContext.AccountRoles!
                     .Where(ar => ar.AccountId == account.AccountId)
                     .ToListAsync());
             await _authContext.SaveChangesAsync();
-            
-            foreach (var role in accountBody.UserRoles!)
+
+            foreach (var role in accountBody.UserRoles ?? [])
             {
                 var accountRole = new AccountRole()
                 {
@@ -177,13 +176,14 @@ public class AccountRepository: IAccountRepository
             UserRoles = account.UserRoles?
                 .Select(accountRole => accountRole.Role)
                 .OfType<Role>()
+                .Select(role => new RoleResponse(role.RoleId, role.Name))
                 .ToList() ?? []
         };
     }
 
     public async Task DeleteAccountByIdAsync(int id)
     {
-        var account = await _authContext.Accounts!.Where(a => a.AccountId == id).Include(a=>a.UserRoles)!.ThenInclude(a=>a.Role).FirstOrDefaultAsync();
+        var account = await _authContext.Accounts!.Where(a => a.AccountId == id).Include(a => a.UserRoles)!.ThenInclude(a => a.Role).FirstOrDefaultAsync();
         if (account != null)
         {
             foreach (var userRole in account.UserRoles!)
@@ -198,5 +198,5 @@ public class AccountRepository: IAccountRepository
         await _authContext.SaveChangesAsync();
     }
 
-    
+
 }

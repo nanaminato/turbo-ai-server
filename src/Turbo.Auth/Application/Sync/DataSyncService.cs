@@ -15,7 +15,7 @@ namespace Turbo.Auth.Application.Sync;
 public sealed class DataSyncService(AuthContext database)
 {
     private static JToken Json(object value) => JToken.FromObject(value, JsonSerializer.Create(new JsonSerializerSettings
-        { ContractResolver = new CamelCasePropertyNamesContractResolver() }));
+    { ContractResolver = new CamelCasePropertyNamesContractResolver() }));
     private bool MySql => database.Database.ProviderName?.Contains("MySql", StringComparison.OrdinalIgnoreCase) == true;
 
     private async Task<SyncAccount> LockAccount(int accountId, CancellationToken token)
@@ -60,9 +60,15 @@ public sealed class DataSyncService(AuthContext database)
         state.Version++;
         database.Set<SyncChange>().Add(new SyncChange
         {
-            AccountId = accountId, Version = state.Version, OperationId = operationId, RequestHash = requestHash,
-            Kind = mutation.Kind, Action = mutation.Action, EntityId = mutation.EntityId,
-            HistoryId = mutation.HistoryId, Payload = payload?.ToString(Formatting.None)
+            AccountId = accountId,
+            Version = state.Version,
+            OperationId = operationId,
+            RequestHash = requestHash,
+            Kind = mutation.Kind,
+            Action = mutation.Action,
+            EntityId = mutation.EntityId,
+            HistoryId = mutation.HistoryId,
+            Payload = payload?.ToString(Formatting.None)
         });
         await database.SaveChangesAsync(token);
         await transaction.CommitAsync(token);
@@ -99,7 +105,18 @@ public sealed class DataSyncService(AuthContext database)
 
     private static long NumericId(SyncMutation mutation) => long.TryParse(mutation.EntityId, out var id) && id > 0 && id <= 9007199254740991
         ? id : throw new ArgumentException("Invalid client ID.");
-    private static T Payload<T>(SyncMutation mutation) where T : class => mutation.Payload?.ToObject<T>() ?? throw new ArgumentException("Missing sync payload.");
+    private static T Payload<T>(SyncMutation mutation) where T : class
+    {
+        if (mutation.Payload is not JObject) throw new ArgumentException("Missing or invalid sync payload.");
+        try
+        {
+            var payload = mutation.Payload.ToObject<T>() ?? throw new ArgumentException("Missing sync payload.");
+            if (payload is MMessage message && message.FileList?.Any(file => file is null) == true)
+                throw new ArgumentException("File list must not contain null entries.");
+            return payload;
+        }
+        catch (JsonException exception) { throw new ArgumentException("Invalid sync payload.", exception); }
+    }
 
     private async Task<JToken?> History(int accountId, SyncMutation mutation, CancellationToken token)
     {
@@ -131,8 +148,14 @@ public sealed class DataSyncService(AuthContext database)
         message.Model = incoming.Model;
         message.Finish = incoming.Finish;
         message.ShowType = incoming.ShowType;
-        message.FileList = (incoming.FileList ?? []).Select(file => new FileAdds { FileName = file.FileName,
-            FileType = file.FileType, FileSize = file.FileSize, FileContent = file.FileContent, ParsedContent = file.ParsedContent }).ToList();
+        message.FileList = (incoming.FileList ?? []).Select(file => new FileAdds
+        {
+            FileName = file.FileName,
+            FileType = file.FileType,
+            FileSize = file.FileSize,
+            FileContent = file.FileContent,
+            ParsedContent = file.ParsedContent
+        }).ToList();
         return MessageJson(message);
     }
 
@@ -149,8 +172,23 @@ public sealed class DataSyncService(AuthContext database)
     }
 
     private static JToken HistoryJson(ChatHistory item) => Json(new { item.DataId, item.Title, item.UserId });
-    private static JToken MessageJson(ChatMessage item) => Json(new { item.DataId, item.Role, item.Content, item.Model, item.Finish,
-        item.ShowType, FileList = item.FileList?.Select(file => new { file.FileName, file.FileType, file.FileSize, file.FileContent, file.ParsedContent }) });
-    private static JToken TaskJson(GenerateTask item) => Json(new { task_id = item.TaskId, task_type = item.TaskType,
-        date = item.DateTime, account_id = item.AccountId, images = item.Images, videos = item.Videos });
+    private static JToken MessageJson(ChatMessage item) => Json(new
+    {
+        item.DataId,
+        item.Role,
+        item.Content,
+        item.Model,
+        item.Finish,
+        item.ShowType,
+        FileList = item.FileList?.Select(file => new { file.FileName, file.FileType, file.FileSize, file.FileContent, file.ParsedContent })
+    });
+    private static JToken TaskJson(GenerateTask item) => Json(new
+    {
+        task_id = item.TaskId,
+        task_type = item.TaskType,
+        date = item.DateTime,
+        account_id = item.AccountId,
+        images = item.Images,
+        videos = item.Videos
+    });
 }
