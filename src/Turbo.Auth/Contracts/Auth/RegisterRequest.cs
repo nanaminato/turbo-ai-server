@@ -15,6 +15,9 @@ public class RegisterRequest
     [Required, StringLength(128, MinimumLength = 6)]
     [JsonProperty("password")]
     public string? Password { get; set; }
+    [Required, RegularExpression("^[0-9]{6}$")]
+    public string? EmailCode { get; set; }
+
     [Required, Compare(nameof(Password))]
     [JsonProperty("confirm")]
     public string? Confirm { get; set; }

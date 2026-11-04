@@ -133,3 +133,7 @@ data: {"type":"completed","text":null,"code":null}
 ## 请求与响应契约
 
 请求与响应模型集中于 `Contracts/`，不直接公开数据库关系或供应商 SDK 类型。字段命名保持现有 JSON 协议；数据注解校验失败由 ApiController 提前返回 400 ValidationProblemDetails。字段白名单、ID 校验、SDK 返回值映射和兼容限制见 [Controller 契约与官方 SDK](api-contracts-and-sdks.md)。
+
+## 注册邮箱验证码
+
+先调用 `POST /api/auth/register/email-code`，只提交 email；收到邮件后在 `POST /api/auth/register` 中提交 emailCode 与原有注册字段。验证码不通过时不会创建账户。响应、冷却与部署要求见 [注册邮箱验证](registration-email-verification.md)。

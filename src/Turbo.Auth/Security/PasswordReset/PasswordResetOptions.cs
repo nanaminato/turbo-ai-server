@@ -15,7 +15,9 @@ public sealed class PasswordResetOptions
         Uri.TryCreate(PublicBaseUrl, UriKind.Absolute, out var uri) &&
         (uri.Scheme == "https" || uri.Scheme == "http" && uri.IsLoopback) &&
         string.IsNullOrEmpty(uri.Query) && string.IsNullOrEmpty(uri.Fragment) && string.IsNullOrEmpty(uri.UserInfo) &&
-        !string.IsNullOrWhiteSpace(SmtpHost) && SmtpPort is > 0 and <= 65535 &&
+        IsSmtpValid());
+
+    public bool IsSmtpValid() => !string.IsNullOrWhiteSpace(SmtpHost) && SmtpPort is > 0 and <= 65535 &&
         (SmtpPort != 465 || EnableSsl) &&
-        System.Net.Mail.MailAddress.TryCreate(FromAddress, out _));
+        System.Net.Mail.MailAddress.TryCreate(FromAddress, out _);
 }

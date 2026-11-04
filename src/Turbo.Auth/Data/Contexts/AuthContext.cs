@@ -32,23 +32,31 @@ public partial class AuthContext : DbContext
             .UseCollation("utf8mb4_0900_ai_ci")
             .HasCharSet("utf8mb4");
 
-        modelBuilder.Entity<SyncAccount>(entity => {
+        modelBuilder.Entity<SyncAccount>(entity =>
+        {
             entity.ToTable("SyncAccounts"); entity.HasKey(item => item.AccountId);
             entity.Property(item => item.AccountId).ValueGeneratedNever();
             entity.HasOne<Account>().WithMany().HasForeignKey(item => item.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
-        modelBuilder.Entity<SyncChange>(entity => {
-            entity.ToTable("SyncChanges"); entity.HasKey(item => new {item.AccountId, item.Version});
+        modelBuilder.Entity<SyncChange>(entity =>
+        {
+            entity.ToTable("SyncChanges"); entity.HasKey(item => new { item.AccountId, item.Version });
             entity.HasOne<SyncAccount>().WithMany().HasForeignKey(item => item.AccountId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(item => new {item.AccountId, item.OperationId}).IsUnique();
+            entity.HasIndex(item => new { item.AccountId, item.OperationId }).IsUnique();
             entity.Property(item => item.OperationId).HasMaxLength(32);
             entity.Property(item => item.RequestHash).HasMaxLength(64);
             entity.Property(item => item.Kind).HasMaxLength(16);
             entity.Property(item => item.Action).HasMaxLength(16);
             entity.Property(item => item.EntityId).HasMaxLength(255);
         });
-        modelBuilder.Entity<ChatHistory>().HasIndex(item => new {item.UserId, item.DataId}).IsUnique();
-        modelBuilder.Entity<ChatMessage>().HasIndex(item => new {item.ChatHistoryId, item.DataId}).IsUnique();
+        modelBuilder.Entity<ChatHistory>().HasIndex(item => new { item.UserId, item.DataId }).IsUnique();
+        modelBuilder.Entity<ChatMessage>().HasIndex(item => new { item.ChatHistoryId, item.DataId }).IsUnique();
+        modelBuilder.Entity<Turbo.Auth.Security.Registration.RegistrationEmailChallenge>(entity =>
+        {
+            entity.ToTable("RegistrationEmailChallenges"); entity.HasKey(item => item.EmailHash);
+            entity.Property(item => item.EmailHash).HasMaxLength(64);
+            entity.Property(item => item.CodeHash).HasMaxLength(64);
+        });
         OnModelCreatingPartial(modelBuilder);
         modelBuilder.Entity<Account>().ToTable("Accounts");
         modelBuilder.Entity<RefreshToken>(entity =>
@@ -71,7 +79,7 @@ public partial class AuthContext : DbContext
         modelBuilder.Entity<GenerateTask>(entity =>
         {
             entity.ToTable("GenerateTasks");
-        
+
             // 配置 Images 字段为 JSON
             entity.Property(e => e.Images)
                 .HasColumnType("json") // 指定数据库类型为 json
@@ -79,7 +87,7 @@ public partial class AuthContext : DbContext
                     v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions)null),
                     v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions)null)
                 );
-        
+
             // 配置 Videos 字段为 JSON
             entity.Property(e => e.Videos)
                 .HasColumnType("json") // 指定数据库类型为 json

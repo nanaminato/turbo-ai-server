@@ -1,3 +1,4 @@
+using Turbo.Auth.Security.Registration;
 using Turbo.Auth.Security.FeatureAccess;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
@@ -107,6 +108,9 @@ builder.Services.AddOptions<PasswordResetOptions>().Bind(builder.Configuration.G
 var protection = builder.Services.AddDataProtection().SetApplicationName("Turbo.Auth");
 var keyPath = builder.Configuration["DataProtection:KeyPath"];
 if (!string.IsNullOrWhiteSpace(keyPath)) protection.PersistKeysToFileSystem(new DirectoryInfo(keyPath));
+builder.Services.Configure<RegistrationOptions>(builder.Configuration.GetSection("Registration"));
+builder.Services.AddScoped<IRegistrationEmailSender, RegistrationEmailSender>();
+builder.Services.AddScoped<IRegistrationService, RegistrationService>();
 builder.Services.AddSingleton<ResetTokenService>();
 builder.Services.AddScoped<IPasswordResetStore, PasswordResetStore>();
 builder.Services.AddScoped<IPasswordResetEmailSender, PasswordResetEmailSender>();
@@ -114,6 +118,10 @@ builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    foreach (var (name, limit) in new[] { ("registration-email", 10), ("registration", 30) })
+        options.AddPolicy(name, context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+            { PermitLimit = limit, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
     options.AddPolicy("password-reset", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
         { PermitLimit = 10, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));

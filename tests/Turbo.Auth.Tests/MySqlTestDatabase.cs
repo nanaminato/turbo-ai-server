@@ -20,7 +20,7 @@ internal sealed class MySqlTestDatabase : IAsyncDisposable
         var configured = Environment.GetEnvironmentVariable("TURBO_TEST_MYSQL");
         if (string.IsNullOrWhiteSpace(configured)) Assert.Ignore("TURBO_TEST_MYSQL is required for isolated MySQL checks.");
         var settings = new MySqlConnectionStringBuilder(configured!)
-            { Database = "", AllowUserVariables = true, Pooling = true, MaximumPoolSize = 32 };
+        { Database = "", AllowUserVariables = true, Pooling = true, MaximumPoolSize = 32 };
         var fixture = new MySqlTestDatabase(new MySqlConnection(settings.ConnectionString));
         try
         {
@@ -43,7 +43,7 @@ internal sealed class MySqlTestDatabase : IAsyncDisposable
                 INSERT INTO GenerateTasks(TaskId,TaskType,AccountId,DateTime,Images,Videos)
                   VALUES ('legacy-task','image',1,'2026-11-04 00:00:00',JSON_ARRAY('https://example.invalid/image'),JSON_ARRAY());
                 """);
-            if (legacy && upgrade) await fixture.Execute(Resource("ArchitectureUpgrade.sql"));
+            if (legacy && upgrade) { await fixture.Execute(Resource("ArchitectureUpgrade.sql")); await fixture.Execute(Resource("RegistrationEmail.sql")); }
             return fixture;
         }
         catch { await fixture.DisposeAsync(); throw; }

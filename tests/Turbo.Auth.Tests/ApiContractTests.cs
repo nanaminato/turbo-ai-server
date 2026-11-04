@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.RateLimiting;
+using Turbo.Auth.Security.Registration;
 using System.Net;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -31,6 +33,7 @@ public class ApiContractTests
 {
     private WebApplication _app = null!;
     private HttpClient _client = null!;
+    private readonly RegistrationStub _registration = new();
     private readonly ChatStub _chat = new();
     private readonly KeysStub _keys = new();
 
@@ -47,6 +50,14 @@ public class ApiContractTests
             options.AddPolicy("admin", policy => policy.RequireRole("admin"));
             options.AddPolicy("user", policy => policy.RequireRole("user"));
         });
+        builder.Services.AddRateLimiter(options =>
+        {
+            foreach (var name in new[] { "registration", "registration-email" }) options.AddFixedWindowLimiter(name, limiter =>
+            {
+                limiter.PermitLimit = 1000; limiter.Window = TimeSpan.FromMinutes(1);
+            });
+        });
+        builder.Services.AddSingleton<IRegistrationService>(_registration);
         builder.Services.AddSingleton<IChatService>(_chat);
         builder.Services.AddSingleton<IKeyRepository>(_keys);
         builder.Services.AddSingleton<IModelRepository>(new ModelRepository(null!));
@@ -64,6 +75,7 @@ public class ApiContractTests
                 new Claim(ClaimTypes.Role, "user"), new Claim(ClaimTypes.Role, "admin")], "test"));
             await next();
         });
+        _app.UseRateLimiter();
         _app.UseAuthorization();
         _app.MapControllers();
         await _app.StartAsync();
@@ -158,6 +170,41 @@ public class ApiContractTests
         Assert.That(schemas["ChatMessageRequest"].Properties!["content"].OneOf, Has.Count.EqualTo(2));
         Assert.That(schemas["ImageGenerationRequest"].Properties!.Keys, Does.Contain("response_format").And.Contain("output_format"));
         Assert.That(schemas["ImageResultResponse"].Properties!.Keys, Does.Contain("b64_json").And.Contain("revised_prompt"));
+    }
+
+    [TestCase("{\"username\":\"new\",\"email\":\"new@example.invalid\",\"password\":\"secret123\",\"confirm\":\"secret123\"}")]
+    [TestCase("{\"username\":\"new\",\"email\":\"new@example.invalid\",\"password\":\"secret123\",\"confirm\":\"secret123\",\"emailCode\":\"abc123\"}")]
+    public async Task Registration_cannot_bypass_email_code_validation(string json)
+    {
+        var before = _registration.RegisterCalls;
+        using var response = await Post("api/auth/register", json);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        Assert.That(_registration.RegisterCalls, Is.EqualTo(before));
+    }
+    [Test]
+    public async Task Email_code_response_never_returns_the_code_and_reports_server_cooldown()
+    {
+        _registration.Result = new(EmailCodeStatus.Sent);
+        using (var response = await Post("api/auth/register/email-code", "{\"email\":\"new@example.invalid\"}"))
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Accepted));
+            var body = JObject.Parse(await response.Content.ReadAsStringAsync());
+            Assert.That(body["code"]!.Value<string>(), Is.EqualTo("registration_code_sent"));
+            Assert.That(body.Properties().Select(property => property.Name), Is.EquivalentTo(new[] { "code", "message", "expiresInSeconds", "resendAfterSeconds" }));
+        }
+        _registration.Result = new(EmailCodeStatus.Cooldown, 36);
+        using (var response = await Post("api/auth/register/email-code", "{\"email\":\"new@example.invalid\"}"))
+        {
+            Assert.That((int)response.StatusCode, Is.EqualTo(429));
+            Assert.That(response.Headers.RetryAfter!.Delta!.Value.TotalSeconds, Is.EqualTo(36));
+        }
+        _registration.Result = new(EmailCodeStatus.Sent);
+    }
+    private sealed class RegistrationStub : IRegistrationService
+    {
+        public int RegisterCalls; public EmailCodeResult Result = new(EmailCodeStatus.Sent);
+        public Task<EmailCodeResult> SendCode(string email, CancellationToken token) => Task.FromResult(Result);
+        public Task<RegistrationStatus> Register(Turbo.Auth.Contracts.Auth.RegisterRequest request, CancellationToken token) { RegisterCalls++; return Task.FromResult(RegistrationStatus.Success); }
     }
 
     private Task<HttpResponseMessage> Post(string path, string body) => _client.PostAsync(path, Json(body));

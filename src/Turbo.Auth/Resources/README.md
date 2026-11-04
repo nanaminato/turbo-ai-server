@@ -27,3 +27,5 @@ Token。
 
 
 架构升级还需要 `merge/architecture-upgrade.sql`：新增版本化同步表、唯一索引及路由失效触发器。已有数据库先停止写入、备份和检查重复 ID，再按当前结构执行一次；部分迁移不可盲目重跑。普通 Web 启动只读校验这些结构，不会自动修改数据库。详细步骤见 `docs/deployment.md` 和 `docs/startup-repair.md`。
+
+公开注册邮箱验证新增 `merge/registration-email-verification.sql`；已有库执行一次，新库已包含于 init.sql。它只新增验证码摘要表，不改已有账户。注册默认必须验证邮箱；SMTP 与开关见 `docs/registration-email-verification.md`。

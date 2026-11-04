@@ -270,6 +270,15 @@ CREATE TABLE SyncChanges (
     CONSTRAINT FK_SyncChanges_SyncAccounts FOREIGN KEY (AccountId) REFERENCES SyncAccounts (AccountId) ON DELETE CASCADE
 );
 
+-- Registration email verification; additive migration for existing databases.
+CREATE TABLE RegistrationEmailChallenges (
+    EmailHash varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+    CodeHash varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    ExpiresAt datetime(6) NOT NULL,
+    NextSendAt datetime(6) NOT NULL,
+    AttemptsLeft int NOT NULL
+);
+
 -- Every replica polls this shared revision; all catalog writers, including SQL maintenance, invalidate it.
 CREATE TABLE RoutingConfiguration (Id int NOT NULL PRIMARY KEY, Version bigint NOT NULL);
 INSERT INTO RoutingConfiguration (Id, Version) VALUES (1, 1);

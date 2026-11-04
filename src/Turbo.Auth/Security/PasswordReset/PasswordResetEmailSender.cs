@@ -19,12 +19,16 @@ public sealed class PasswordResetEmailSender(IOptions<PasswordResetOptions> opti
 
     public async Task SendAsync(string recipient, string link, CancellationToken cancellationToken)
     {
-        var settings = options.Value;
+        await SendMessageAsync(options.Value, recipient, ApiMessages.Get("reset_email_subject"),
+            ApiMessages.Get("reset_email_body") + "\n\n" + link, cancellationToken);
+    }
+    public static async Task SendMessageAsync(PasswordResetOptions settings, string recipient, string subject, string body, CancellationToken cancellationToken)
+    {
         var message = new MimeMessage();
         message.From.Add(MailboxAddress.Parse(settings.FromAddress));
         message.To.Add(MailboxAddress.Parse(recipient));
-        message.Subject = ApiMessages.Get("reset_email_subject");
-        message.Body = new TextPart("plain") { Text = ApiMessages.Get("reset_email_body") + "\n\n" + link };
+        message.Subject = subject;
+        message.Body = new TextPart("plain") { Text = body };
         using var client = new SmtpClient { Timeout = 30000 };
         // Certificate validation remains enabled. Never silently downgrade required STARTTLS.
         await client.ConnectAsync(settings.SmtpHost, settings.SmtpPort, SocketOptions(settings), cancellationToken);

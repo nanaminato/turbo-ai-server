@@ -13,6 +13,7 @@
     <ItemGroup>
       <EmbeddedResource Include="../../src/Turbo.Auth/Resources/account/create-admin.sql" LogicalName="CreateAdmin.sql" />
       <EmbeddedResource Include="Fixtures/pre-architecture-e01436d.sql" LogicalName="PreArchitecture.sql" />
+      <EmbeddedResource Include="../../src/Turbo.Auth/Resources/merge/registration-email-verification.sql" LogicalName="RegistrationEmail.sql" />
       <EmbeddedResource Include="../../src/Turbo.Auth/Resources/merge/architecture-upgrade.sql" LogicalName="ArchitectureUpgrade.sql" />
     </ItemGroup>
 

@@ -10,10 +10,11 @@ public static class ArchitectureSchemaCheck
         ["RoutingConfiguration"] = ["Id", "Version"],
         ["SyncAccounts"] = ["AccountId", "Version"],
         ["SyncChanges"] = ["AccountId", "Version", "OperationId", "RequestHash", "Kind", "Action", "EntityId", "HistoryId", "Payload"],
-        ["ModelKeyBinds"] = ["ProviderModelValue", "Priority"]
+        ["ModelKeyBinds"] = ["ProviderModelValue", "Priority"],
+        ["RegistrationEmailChallenges"] = ["EmailHash", "CodeHash", "ExpiresAt", "NextSendAt", "AttemptsLeft"]
     };
 
-    public static async Task Validate(string connectionString, CancellationToken token = default)
+    public static async Task Validate(string connectionString, CancellationToken token = default, bool includeRegistration = false)
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection.OpenAsync(token);
@@ -30,6 +31,7 @@ public static class ArchitectureSchemaCheck
         var missing = new List<string>();
         foreach (var (table, required) in RequiredColumns)
         {
+            if (table == "RegistrationEmailChallenges" && !includeRegistration) continue;
             var available = columns.Where(row => row[0] == table).Select(row => row[1]).ToHashSet(StringComparer.OrdinalIgnoreCase);
             if (available.Count == 0) missing.Add(table);
             else missing.AddRange(required.Where(column => !available.Contains(column)).Select(column => table + "." + column));
@@ -51,19 +53,28 @@ public static class ArchitectureSchemaCheck
             if (Convert.ToInt64(await seed.ExecuteScalarAsync(token)) != 1) missing.Add("RoutingConfiguration row Id=1");
         }
         if (missing.Count != 0)
+        {
+            var scripts = new List<string>();
+            if (missing.Any(item => !item.StartsWith("RegistrationEmailChallenges", StringComparison.Ordinal)))
+                scripts.Add("src/Turbo.Auth/Resources/merge/architecture-upgrade.sql");
+            if (missing.Any(item => item.StartsWith("RegistrationEmailChallenges", StringComparison.Ordinal)))
+                scripts.Add("src/Turbo.Auth/Resources/merge/registration-email-verification.sql");
             throw new InvalidOperationException("数据库架构尚未升级，缺少：" + string.Join(", ", missing) +
-                "。请停止写入并备份；已有库对照 src/Turbo.Auth/Resources/merge/architecture-upgrade.sql 完成迁移，" +
+                "。请停止写入并备份；已有库对照 " + string.Join("、", scripts) + " 完成迁移。" +
                 "部分升级的数据库需先核对实际结构，不能盲目整份重跑。空库请使用 merge/init.sql。详见 docs/deployment.md。启动不会自动修改数据库。");
+        }
     }
 }
 
-public sealed class DatabaseSchemaValidationService(IConfiguration configuration) : IHostedService
+public sealed class DatabaseSchemaValidationService(IConfiguration configuration,
+    Microsoft.Extensions.Options.IOptions<Turbo.Auth.Security.Registration.RegistrationOptions> registration,
+    Microsoft.Extensions.Options.IOptions<Turbo.Auth.Security.PasswordReset.PasswordResetOptions> smtp) : IHostedService
 {
     public async Task StartAsync(CancellationToken token)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        await ArchitectureSchemaCheck.Validate(configuration.GetConnectionString("ciko")!, timeout.Token);
+        await ArchitectureSchemaCheck.Validate(configuration.GetConnectionString("ciko")!, timeout.Token, registration.Value.Enabled && smtp.Value.IsSmtpValid());
     }
     public Task StopAsync(CancellationToken token) => Task.CompletedTask;
 }

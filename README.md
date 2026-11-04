@@ -4,6 +4,7 @@
 
 ## 文档
 
+- [注册邮箱验证](docs/registration-email-verification.md)：验证码流程、SMTP 配置及数据库迁移。
 - [启动修复记录](docs/startup-repair.md)：缺少架构迁移时的诊断、修复和验证。
 - [部署与配置](docs/deployment.md)：本地启动、生产配置和前端部署。
 - [MySQL 验证记录](docs/mysql-verification.md)：并发同步、路由触发器、旧库升级与发现的修复。

@@ -102,19 +102,6 @@ public class AuthController : Controller
         return NoContent();
     }
 
-    [HttpPost("register")]
-    [AllowAnonymous]
-    public async Task<IActionResult> Register([FromBody] RegisterRequest body, CancellationToken cancellationToken)
-    {
-        var exists = await _context.Accounts!.AnyAsync(
-            u => u.Email == body.Email && u.Username == body.Username, cancellationToken);
-        if (exists) return Conflict(new ApiMessageResponse("account_exists", ApiMessages.Get("account_exists")));
-
-        var account = new Account { Email = body.Email, Username = body.Username, Password = body.Password };
-        await _accountRepository.AddUserAccountAsync(account);
-        return Ok();
-    }
-
     private async Task<Account?> ValidateUserAsync(string username, string password, CancellationToken cancellationToken)
     {
         var account = await _context.Accounts!.FirstOrDefaultAsync(u => u.Username == username, cancellationToken);

@@ -141,3 +141,7 @@ SELECT ChatHistoryId, DataId, COUNT(*) FROM ChatMessages GROUP BY ChatHistoryId,
 后端会在路由首次加载前，只读核对架构升级所需的表、列、唯一索引、12 个路由触发器及版本种子行。若看到“数据库架构尚未升级”或 RoutingConfiguration 不存在，说明当前连接的数据库尚未完成上述迁移；不会通过自动建表或跳过校验来绕过问题。备份并核对实际状态后完成迁移，再启动服务。
 
 当前开发环境的复现、备份、数据保留和启动验证见 [启动修复记录](startup-repair.md)。其他部署环境仍需分别确认，不能根据测试库通过推断其已经升级。
+
+## 注册邮箱验证
+
+公开注册新增必填 emailCode，复用现有 PasswordReset SMTP 配置；Registration.Enabled 默认为 true。已有数据库需要先执行一次 `registration-email-verification.sql`，再配套发布前后端。配置、响应和回归证据见 [注册邮箱验证](registration-email-verification.md)。
