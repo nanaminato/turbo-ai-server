@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Turbo.Auth.Security.FeatureAccess;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Turbo.Auth.Application.Routing;
 using Turbo.Auth.Controllers.AI.OpenAI.Models;
@@ -11,7 +12,7 @@ namespace Turbo.Auth.Controllers.AI.OpenAI;
 /// 基于 tryAGI.OpenAI 4.2.10。
 /// </summary>
 [ApiController]
-[Authorize("vip")]
+[Authorize]
 [Route("api/[controller]")]
 public class MediaController : Controller
 {
@@ -42,6 +43,7 @@ public class MediaController : Controller
         return new OpenAiClient(apiKey, baseUri: new Uri(baseUrl));
     }
 
+    [FeatureAccess("tts")]
     [HttpPost("tts")]
     public async Task<IActionResult> TTS(AudioCreateSpeechRequest speechRequest,
         CancellationToken cancellationToken)
@@ -66,6 +68,7 @@ public class MediaController : Controller
         });
     }
 
+    [FeatureAccess("translation")]
     [HttpPost("whisper-translate")]
     public async Task<IActionResult> WhisperTranslate(OpenAiTranslationRequest request,
         CancellationToken cancellationToken)
@@ -87,6 +90,7 @@ public class MediaController : Controller
         return Ok(translateResult);
     }
 
+    [FeatureAccess("transcription")]
     [HttpPost("whisper-transcription")]
     public async Task<IActionResult> WhisperTranscription(OpenAiTranscriptionRequest request,
         CancellationToken cancellationToken)
@@ -109,6 +113,7 @@ public class MediaController : Controller
         return Ok(transcriptionResult);
     }
 
+    [FeatureAccess("image")]
     [HttpPost("dall-e")]
     public async Task<IActionResult> Dall_E(GPTImageCreateRequest createImage,
         CancellationToken cancellationToken)
@@ -133,6 +138,7 @@ public class MediaController : Controller
         return Ok(imageResult);
     }
 
+    [FeatureAccess("image")]
     [HttpPost("gpt-image")]
     public async Task<IActionResult> Gpt_image(GPTImageCreateRequest createImage,
         CancellationToken cancellationToken)

@@ -1,3 +1,4 @@
+using Turbo.Auth.Security.FeatureAccess;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
 using Turbo.Auth.Security.PasswordReset;
@@ -147,6 +148,8 @@ builder.Services.AddDbContext<AuthContext>(
 builder.Services.AddDbContext<KeyContext>(
     ConfigureDatabase
 );
+builder.Services.AddScoped<FeatureIdentity>();
+builder.Services.AddSingleton<FeatureAccessStore>();
 builder.Services.AddMemoryCache(); // 添加内存缓存支持
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient("AiProvider", client =>
@@ -240,6 +243,15 @@ builder.Services.AddAuthentication(options =>
                         context.HttpContext.RequestAborted))
                 {
                     context.Fail("The session has been revoked.");
+                    return;
+                }
+                // JWT roles are historical claims: replace them with current persisted roles.
+                if (context.Principal?.Identity is System.Security.Claims.ClaimsIdentity identity)
+                {
+                    foreach (var claim in identity.FindAll(identity.RoleClaimType).ToArray()) identity.RemoveClaim(claim);
+                    var resolver = context.HttpContext.RequestServices.GetRequiredService<FeatureIdentity>();
+                    foreach (var role in await resolver.Roles(accountId, context.HttpContext.RequestAborted))
+                        identity.AddClaim(new System.Security.Claims.Claim(identity.RoleClaimType, role));
                 }
             }
         };
@@ -304,6 +316,7 @@ app.UseRouting();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<FeatureAccessMiddleware>();
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 

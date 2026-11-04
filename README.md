@@ -10,6 +10,8 @@
 - [开发与测试](docs/development.md)：构建、测试和数据库准备。
 - [技术栈与依赖](docs/technology.md)：运行时、存储和供应商 SDK。
 
+- [功能访问控制与配额](docs/feature-access.md)：角色授权、频率、并发和升级迁移。
+
 ## 快速启动
 
 先准备 .NET SDK 10、MySQL 8.4+，并创建本地配置：

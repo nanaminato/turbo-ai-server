@@ -1,3 +1,4 @@
+using Turbo.Auth.Security.FeatureAccess;
 using Turbo.Auth.Localization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,7 @@ using Turbo.Auth.Models.AI.Chat;
 using Turbo.Auth.Repositories.Catalog;
 
 namespace Turbo.Auth.Controllers.AI.Chat;
-[Authorize(Policy = "vip")]
+[Authorize]
 [ApiController]
 [Route("api/ai")]
 public class ChatController: Controller
@@ -34,6 +35,7 @@ public class ChatController: Controller
     }
     
     
+    [FeatureAccess("chat")]
     [HttpPost("chat")]
     public async Task Chat(NoModelChatBody chatBody)
     {
@@ -131,7 +133,6 @@ public class ChatController: Controller
     }
 
     [HttpGet("models")]
-    [Authorize("user")]
     public async Task<List<ChatDisplayModel>> GetChatModels()
     {
         var models = await _modelRepository.GetChatModelsAsync();
