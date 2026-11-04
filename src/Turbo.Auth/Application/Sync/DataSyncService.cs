@@ -24,6 +24,10 @@ public sealed class DataSyncService(AuthContext database)
             await database.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO SyncAccounts (AccountId,Version) VALUES ({accountId},0) ON DUPLICATE KEY UPDATE AccountId=AccountId", token);
         else
             await database.Database.ExecuteSqlInterpolatedAsync($"INSERT OR IGNORE INTO SyncAccounts (AccountId,Version) VALUES ({accountId},0)", token);
+        // The insert/upsert already owns the account row lock. A tracking query alone does not
+        // refresh an entity materialized by an earlier operation on this DbContext.
+        var tracked = database.ChangeTracker.Entries<SyncAccount>().SingleOrDefault(entry => entry.Entity.AccountId == accountId);
+        if (tracked is not null) await tracked.ReloadAsync(token);
         // The lock is held through the data write, log append and commit, so a cursor never skips a late commit.
         if (MySql)
             return (await database.Set<SyncAccount>().FromSqlInterpolated($"SELECT AccountId,Version FROM SyncAccounts WHERE AccountId={accountId} FOR UPDATE")

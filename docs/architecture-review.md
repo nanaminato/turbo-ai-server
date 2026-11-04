@@ -9,9 +9,9 @@
 | 3 | P1 | ChatSessionFacade 固定请求的草稿、会话与消息身份；切换/销毁取消请求和订阅；异步文件读取带会话版本；过期 HTTP 结果不覆盖当前会话 | 已实现，本地回归通过 |
 | 4 | P1 | SSE 明确 delta/completed/error；客户端未收到 completed 即中断；四家供应商检查终止标记；保留旧客户端纯文本协商 | 已实现，本地回归通过 |
 | 5 | P2 | 页面编辑独立草稿；配置与提示词复制后编辑；恢复 NgRx 状态/action 不可变检查；配置更新由 reducer 和 effect 接收与持久化 | 已实现，本地回归通过 |
-| 6 | P2 | 同步独立模块；按账户提交排序的游标、持久化删除事件、操作 ID 幂等、IndexedDB 队列及自动重试；多标签页拒绝过期批次 | 已实现，本地回归通过；MySQL 并发联调待运行 |
+| 6 | P2 | 同步独立模块；按账户提交排序的游标、持久化删除事件、操作 ID 幂等、IndexedDB 队列及自动重试；多标签页拒绝过期批次 | 已实现，本地及真实 MySQL 并发联调通过 |
 | 7 | P2 | ChatService 协调路由与首段输出前重试；IChatHandler 返回异步文本流，不引用 Controller/HttpResponse；OpenAI 聊天和媒体共用客户端工厂，实际注入命名 HttpClient | 已实现，模拟上游回归通过 |
-| 8 | P2 | 数据库触发器更新共享路由版本，各实例定时发布快照；进程内刷新串行；数据库长期不可确认时清空路由 | 已实现，双实例本地模拟通过；MySQL 触发器联调待运行 |
+| 8 | P2 | 数据库触发器更新共享路由版本，各实例定时发布快照；进程内刷新串行；数据库长期不可确认时清空路由 | 已实现，本地及真实 MySQL 双实例、12 个触发器联调通过 |
 | 9 | P2 | 所有 IndexedDB 读写等待同一个初始化 Promise；失败明确拒绝；v4 升级复制旧数据并保留源存储 | 已实现，本地回归通过 |
 
 第 2 项依赖第 9 项的初始化约束，因此两者一起实现；第 4 项与第 7 项共享流式边界，一起验证。
@@ -46,12 +46,16 @@
 
 验证包括：账户/会话重复 ID、消息及附件事务回滚、稳定消息身份、会话取消、冻结状态编辑、UTF-8 分片、未完成/异常流、四家模拟供应商、队列确认丢失、删除传播、账户切换、首次升级保留、本地数据库打开失败、多标签页过期响应、共享路由版本与过期清空。
 
-SQLite 用于本地关系数据库事务测试，浏览器使用真实 IndexedDB。SQLite 不能替代 MySQL 的行锁、触发器和 DDL 联调。没有配置 `TURBO_TEST_MYSQL`，新增的显式 `ArchitectureDatabaseTests.Mysql_schema_triggers_and_parallel_sync_commits_are_consistent` 未运行；真实供应商联网调用也未运行。没有操作生产数据库或部署应用。
+SQLite 用于本地关系数据库事务测试，浏览器使用真实 IndexedDB。SQLite 不能替代 MySQL 的行锁、触发器和 DDL 联调。初次实现时尚未运行真实 MySQL 集成。后续已通过本地忽略的测试连接，在 MySQL 8.4.13 上完成 10 项架构集成验证，修复 EF 跟踪旧版本值的问题；普通 Release 回归 100 项通过。详细证据及复现命令见后端仓库 `docs/mysql-verification.md`。真实供应商联网调用仍未运行，没有操作生产数据库或部署应用。
 
-### 本轮执行结果
+### 初次代码改造执行结果
 
 - 前端：`npm test -- --watch=false --browsers=ChromeHeadless`，55 项通过。
 - 多语言：`npm run test:i18n`，6 项通过。
 - 前端生产构建：`npm run build` 通过；首包 2.56 MB，低于现有 5 MB 警告预算；仍有现有 Mermaid 传递依赖的 CommonJS 和 Browserslist 提示。
 - 后端：`dotnet test Turbo.AI.Server.sln --configuration Release --no-restore`，99 项普通测试通过；显式 MySQL 测试未运行。
-- 两个仓库的 `git diff --check` 通过。本轮未执行真实数据库迁移或部署；提交与推送记录以 Git 为准。
+- 两个仓库的 `git diff --check` 通过。未对既有业务数据库执行迁移或部署；提交与推送记录以 Git 为准。
+
+### 后续 MySQL 验证
+
+2026-11-04：真实 MySQL 8.4.13 集成测试 10 项通过；普通 Release 回归 100 项通过。全新建库与从 e01436d 结构升级均已验证，最终完整运行创建的 11 个临时库全部清理。发现并修复复用 EF 上下文时版本缓存导致的重复主键问题。详细记录见后端 `docs/mysql-verification.md`。

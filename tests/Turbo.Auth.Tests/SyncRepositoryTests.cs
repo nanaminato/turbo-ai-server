@@ -96,6 +96,22 @@ public class SyncRepositoryTests
     }
 
     [Test]
+    public async Task Reused_scope_refreshes_the_version_after_another_writer_commits()
+    {
+        var sync = new Turbo.Auth.Application.Sync.DataSyncService(_database);
+        await sync.Read(1, 0, default);
+        await using (var other = Open())
+        {
+            await new Turbo.Auth.Application.Sync.DataSyncService(other).Apply(1,
+                new(Guid.NewGuid(), "history", "upsert", "100", Payload: Newtonsoft.Json.Linq.JObject.FromObject(new {title = "other writer"})), default);
+        }
+        var version = await sync.Apply(1,
+            new(Guid.NewGuid(), "history", "upsert", "100", Payload: Newtonsoft.Json.Linq.JObject.FromObject(new {title = "reused scope"})), default);
+        Assert.That(version, Is.EqualTo(2));
+        Assert.That((await sync.Read(1, 1, default)).Changes.Single().Version, Is.EqualTo(2));
+    }
+
+    [Test]
     public async Task Sync_rollback_does_not_advance_cursor_or_lose_attachments()
     {
         await _database.Database.ExecuteSqlRawAsync("""

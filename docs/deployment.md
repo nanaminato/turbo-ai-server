@@ -133,3 +133,5 @@ SELECT ChatHistoryId, DataId, COUNT(*) FROM ChatMessages GROUP BY ChatHistoryId,
 `AiRouting:RefreshIntervalSeconds` 默认 5，范围 1–60；`AiRouting:MaxStaleSeconds` 默认 30、最小 10。数据库无法确认配置超过阈值后，实例清空旧路由；失效检测还受轮询与超时影响，默认通常约 45 秒内停止使用旧配置处理新请求。已开始的流不受此开关终止。
 
 先发布后端，再发布前端。新前端要求显式完成事件；旧客户端仍可使用纯文本协商和旧同步入口。更新 PWA 资源并验证待同步提示、断网重试、账户切换、双实例停用密钥及完整数据库联调。首次同步的导入策略和日志容量限制见 [架构实施记录](architecture-review.md)。
+
+该升级已在 MySQL 8.4.13 的独立临时库中通过新库/旧库结构等价、数据保留、重复数据拒绝及 12 个路由触发器测试。证据、修复和适用边界见 [MySQL 验证记录](mysql-verification.md)；这不代表已经对业务数据库执行迁移。

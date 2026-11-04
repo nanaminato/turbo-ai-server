@@ -5,6 +5,7 @@
 ## 文档
 
 - [部署与配置](docs/deployment.md)：本地启动、生产配置和前端部署。
+- [MySQL 验证记录](docs/mysql-verification.md)：并发同步、路由触发器、旧库升级与发现的修复。
 - [架构审查与实施记录](docs/architecture-review.md)：逐项优化、协议升级与验证限制。
 - [架构](docs/architecture.md)：组件职责、请求路径和扩展点。
 - [API 使用](docs/api.md)：认证、聊天和管理接口。

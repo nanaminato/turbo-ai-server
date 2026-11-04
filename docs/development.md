@@ -51,10 +51,14 @@ dotnet test Turbo.AI.Server.sln --configuration Release --nologo
 
 架构实施与上线边界见 [审查记录](architecture-review.md)。普通测试新增真实 SQLite 事务、供应商模拟 SSE、IndexedDB 对应前端回归和双实例版本刷新测试，不调用真实供应商。
 
-MySQL 并发与触发器必须额外联调：临时配置 `TURBO_TEST_MYSQL` 为有建库权限的测试连接，运行：
+MySQL 并发、触发器及旧库升级需要单独运行显式集成用例。配置进程环境变量 `TURBO_TEST_MYSQL` 为专用测试连接，运行：
 
 ```bash
-dotnet test tests/Turbo.Auth.Tests/Turbo.Auth.Tests.csproj --filter FullyQualifiedName~Mysql_schema_triggers_and_parallel_sync_commits_are_consistent
+dotnet test tests/Turbo.Auth.Tests/Turbo.Auth.Tests.csproj --configuration Release --filter FullyQualifiedName~ArchitectureDatabaseTests
 ```
 
-该显式测试仅创建并清理 `turbo_arch_test_<guid>` 临时库，验证完整初始化 SQL、真实共享账户锁、并发幂等操作、连续游标和路由触发器。不得用生产数据库替代隔离测试库。SQLite 通过不代表此 MySQL 联调已经完成。
+也可传入被 Git 忽略的 `--settings tests/mysql.runsettings.user`，其中提供测试环境变量。使用单独类过滤器，确认结果显示全部 10 项执行，避免普通/显式测试的混合 OR 过滤器忽略显式用例。
+
+测试仅创建并清理 `turbo_arch_test_<guid>` 临时库，验证并发幂等操作、连续游标、分页、账户锁、12 个路由触发器、双实例刷新、事务回滚与真实旧版本升级。旧库基线固定为 e01436d；升级脚本直接嵌入实际部署资源。不得用生产数据库替代隔离测试库。
+
+2026-11-04 在 MySQL 8.4.13 上 10 项全部通过，并补充了 EF 跟踪版本缓存修复；详见 [MySQL 验证记录](mysql-verification.md)。普通 Release 回归 100 项通过。
