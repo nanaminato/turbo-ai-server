@@ -172,6 +172,7 @@ builder.Services.AddScoped<ITextDocumentProcessor, TextDocumentProcessor>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<RouteReloadGate>();
 builder.Services.AddScoped<IKeyLoader, KeyLoader>();
+builder.Services.AddHostedService<DatabaseSchemaValidationService>();
 builder.Services.AddHostedService<RoutingRefreshService>();
 builder.Services.AddScoped<IKeyPoolRepository, StableKeyPoolRepository>();
 builder.Services.Configure<AiRoutingOptions>(builder.Configuration.GetSection("AiRouting"));

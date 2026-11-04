@@ -11,6 +11,31 @@ public class ArchitectureDatabaseTests
 {
     private const string RequiresMySql = "Requires TURBO_TEST_MYSQL; creates and removes isolated databases.";
 
+    [Test, Explicit(RequiresMySql)]
+    public async Task Startup_preflight_explains_missing_upgrade_without_modifying_the_database()
+    {
+        await using var database = await MySqlTestDatabase.Create(legacy: true, upgrade: false);
+        var before = await database.Scalar<long>("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()");
+        using var connection = database.Connection();
+        var error = Assert.ThrowsAsync<InvalidOperationException>(() => Turbo.Auth.Bootstrap.ArchitectureSchemaCheck.Validate(connection.ConnectionString));
+        Assert.That(error!.Message, Does.Contain("RoutingConfiguration").And.Contain("architecture-upgrade.sql").And.Not.Contain("Password="));
+        Assert.That(await database.Scalar<long>("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()"), Is.EqualTo(before));
+        Assert.That(await database.Scalar<long>("SELECT COUNT(*) FROM ChatMessages"), Is.EqualTo(2));
+        await database.Execute(MySqlTestDatabase.Resource("ArchitectureUpgrade.sql"));
+        await Turbo.Auth.Bootstrap.ArchitectureSchemaCheck.Validate(connection.ConnectionString);
+    }
+
+    [Test, Explicit(RequiresMySql)]
+    public async Task Startup_preflight_accepts_fresh_schema_and_rejects_a_missing_revision_seed()
+    {
+        await using var database = await MySqlTestDatabase.Create();
+        using var connection = database.Connection();
+        await Turbo.Auth.Bootstrap.ArchitectureSchemaCheck.Validate(connection.ConnectionString);
+        await database.Execute("DELETE FROM RoutingConfiguration WHERE Id=1");
+        var error = Assert.ThrowsAsync<InvalidOperationException>(() => Turbo.Auth.Bootstrap.ArchitectureSchemaCheck.Validate(connection.ConnectionString));
+        Assert.That(error!.Message, Does.Contain("row Id=1"));
+    }
+
     [TestCase(false), TestCase(true), Explicit(RequiresMySql)]
     public async Task Mysql_schema_triggers_and_parallel_sync_commits_are_consistent(bool upgraded)
     {
