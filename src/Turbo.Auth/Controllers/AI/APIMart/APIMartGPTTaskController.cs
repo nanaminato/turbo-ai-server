@@ -14,14 +14,16 @@ namespace Turbo.Auth.Controllers.AI.APIMart;
 public class APIMartGPTTaskController: Controller
 {
     private readonly FeatureAccessStore _access;
+    private readonly IHttpClientFactory _http;
     private QuickModel _quickModel;
     
     public APIMartGPTTaskController(
-        QuickModel quickModel, FeatureAccessStore access
+        QuickModel quickModel, FeatureAccessStore access, IHttpClientFactory http
         )
     {
         _quickModel = quickModel;
         _access = access;
+        _http = http;
     }
     [Authorize]
     [HttpGet("getTask/{task_id}")]
@@ -35,11 +37,12 @@ public class APIMartGPTTaskController: Controller
             return BadRequest(ApiMessages.Get("no_api_key"));
         }
         var url = apiMartKey!.BaseUrl+$"/v1/tasks/{Uri.EscapeDataString(task_id)}?language={Uri.EscapeDataString(language ?? "en")}";
-        using var client = new HttpClient();
+        using var client = _http.CreateClient("AiProvider");
         client.DefaultRequestHeaders.Add("Authorization", "Bearer "+apiMartKey.ApiKey);
         
         var response = await client.GetAsync(url, HttpContext.RequestAborted);
         var result = await response.Content.ReadAsStringAsync(HttpContext.RequestAborted);
+        if (!response.IsSuccessStatusCode) return StatusCode(502, new {code = "ai_unavailable"});
         var task = JsonConvert.DeserializeObject<TaskResponse>(result);
         return Ok(task);
     }

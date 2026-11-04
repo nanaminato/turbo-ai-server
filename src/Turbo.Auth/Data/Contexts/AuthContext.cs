@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Turbo.Auth.Application.Sync;
+using Microsoft.EntityFrameworkCore;
 using Turbo.Auth.Models.Accounts;
 using Turbo.Auth.Models.Sync.Messages;
 using Turbo.Auth.Models.Sync.Tasks;
@@ -23,7 +24,7 @@ public partial class AuthContext : DbContext
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         // Console.WriteLine("CONNECT "+_configuration.GetConnectionString("ciko"));
-        optionsBuilder.UseMySql(_configuration.GetConnectionString("ciko"), ServerVersion.Parse("8.4.6-mysql"));
+        if (!optionsBuilder.IsConfigured) optionsBuilder.UseMySql(_configuration.GetConnectionString("ciko"), ServerVersion.Parse("8.4.6-mysql"));
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,6 +32,23 @@ public partial class AuthContext : DbContext
             .UseCollation("utf8mb4_0900_ai_ci")
             .HasCharSet("utf8mb4");
 
+        modelBuilder.Entity<SyncAccount>(entity => {
+            entity.ToTable("SyncAccounts"); entity.HasKey(item => item.AccountId);
+            entity.Property(item => item.AccountId).ValueGeneratedNever();
+            entity.HasOne<Account>().WithMany().HasForeignKey(item => item.AccountId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<SyncChange>(entity => {
+            entity.ToTable("SyncChanges"); entity.HasKey(item => new {item.AccountId, item.Version});
+            entity.HasOne<SyncAccount>().WithMany().HasForeignKey(item => item.AccountId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(item => new {item.AccountId, item.OperationId}).IsUnique();
+            entity.Property(item => item.OperationId).HasMaxLength(32);
+            entity.Property(item => item.RequestHash).HasMaxLength(64);
+            entity.Property(item => item.Kind).HasMaxLength(16);
+            entity.Property(item => item.Action).HasMaxLength(16);
+            entity.Property(item => item.EntityId).HasMaxLength(255);
+        });
+        modelBuilder.Entity<ChatHistory>().HasIndex(item => new {item.UserId, item.DataId}).IsUnique();
+        modelBuilder.Entity<ChatMessage>().HasIndex(item => new {item.ChatHistoryId, item.DataId}).IsUnique();
         OnModelCreatingPartial(modelBuilder);
         modelBuilder.Entity<Account>().ToTable("Accounts");
         modelBuilder.Entity<RefreshToken>(entity =>

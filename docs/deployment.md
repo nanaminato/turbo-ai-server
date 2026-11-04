@@ -114,3 +114,22 @@ src/Turbo.Auth/wwwroot
 4. 调用 `POST /api/sync/loadKeys`，使更改立即进入内存密钥池。
 
 详见 [API 使用](api.md)。
+
+## 2026-11-04 架构升级
+
+已有数据库在停止写入并备份后，运行一次 `src/Turbo.Auth/Resources/merge/architecture-upgrade.sql`；新库使用已包含这些表和触发器的 `merge/init.sql`。不要对已有库重跑完整初始化脚本。
+
+先检查重复客户端 ID：
+
+```sql
+SELECT UserId, DataId, COUNT(*) FROM ChatHistories GROUP BY UserId, DataId HAVING COUNT(*) > 1;
+SELECT ChatHistoryId, DataId, COUNT(*) FROM ChatMessages GROUP BY ChatHistoryId, DataId HAVING COUNT(*) > 1;
+```
+
+存在重复时先人工确定应保留的数据；唯一索引创建会拒绝重复，脚本不会删数据。迁移需要创建表、索引及触发器的权限，DDL 无法事务回滚。脚本中断时核对实际结构后继续，不能盲目整份重试。
+
+新增 `SyncAccounts`、`SyncChanges` 用于按账户提交排序的同步与幂等重试；`RoutingConfiguration` 及目录触发器用于多实例路由失效。旧后端写入不会维护同步日志，不能在新客户端已经建立游标后直接回滚旧应用。
+
+`AiRouting:RefreshIntervalSeconds` 默认 5，范围 1–60；`AiRouting:MaxStaleSeconds` 默认 30、最小 10。数据库无法确认配置超过阈值后，实例清空旧路由；失效检测还受轮询与超时影响，默认通常约 45 秒内停止使用旧配置处理新请求。已开始的流不受此开关终止。
+
+先发布后端，再发布前端。新前端要求显式完成事件；旧客户端仍可使用纯文本协商和旧同步入口。更新 PWA 资源并验证待同步提示、断网重试、账户切换、双实例停用密钥及完整数据库联调。首次同步的导入策略和日志容量限制见 [架构实施记录](architecture-review.md)。

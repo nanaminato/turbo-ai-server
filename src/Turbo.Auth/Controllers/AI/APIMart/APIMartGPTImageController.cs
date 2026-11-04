@@ -16,17 +16,19 @@ namespace Turbo.Auth.Controllers.AI.APIMart;
 public class APIMartGPTImageController: Controller
 {
     private readonly FeatureAccessStore _access;
+    private readonly IHttpClientFactory _http;
     private QuickModel _quickModel;
     private readonly ILogger<APIMartGPTImageController> _logger;
 
     public APIMartGPTImageController(
         QuickModel quickModel,
-        FeatureAccessStore access,
+        FeatureAccessStore access, IHttpClientFactory http,
         ILogger<APIMartGPTImageController> logger
     )
     {
         _quickModel = quickModel;
         _access = access;
+        _http = http;
         _logger = logger;
     }
 
@@ -39,12 +41,13 @@ public class APIMartGPTImageController: Controller
             return BadRequest(ApiMessages.Get("no_api_key"));
         }
         var url = apiMartKey!.BaseUrl+"/v1/images/generations";
-        using var client = new HttpClient();
+        using var client = _http.CreateClient("AiProvider");
         client.DefaultRequestHeaders.Add("Authorization", "Bearer "+apiMartKey.ApiKey);
         var payload = JsonConvert.SerializeObject(request);
         var content = new StringContent(payload, Encoding.UTF8, "application/json");
         var response = await client.PostAsync(url, content, HttpContext.RequestAborted);
         var result = await response.Content.ReadAsStringAsync(HttpContext.RequestAborted);
+        if (!response.IsSuccessStatusCode) return StatusCode(502, new {code = "ai_unavailable"});
         var task = JsonConvert.DeserializeObject<APIMartGeneratetTask>(result);
         if (response.IsSuccessStatusCode && task?.Data is not null)
             foreach (var item in task.Data.Where(item => !string.IsNullOrWhiteSpace(item.TaskId)))
@@ -60,12 +63,13 @@ public class APIMartGPTImageController: Controller
             return BadRequest(ApiMessages.Get("no_api_key"));
         }
         var url = apiMartKey!.BaseUrl+"/v1/images/generations";
-        using var client = new HttpClient();
+        using var client = _http.CreateClient("AiProvider");
         client.DefaultRequestHeaders.Add("Authorization", "Bearer "+apiMartKey.ApiKey);
         var payload = JsonConvert.SerializeObject(request);
         var content = new StringContent(payload, Encoding.UTF8, "application/json");
         var response = await client.PostAsync(url, content, HttpContext.RequestAborted);
         var result = await response.Content.ReadAsStringAsync(HttpContext.RequestAborted);
+        if (!response.IsSuccessStatusCode) return StatusCode(502, new {code = "ai_unavailable"});
         var task = JsonConvert.DeserializeObject<APIMartGeneratetTask>(result);
         if (response.IsSuccessStatusCode && task?.Data is not null)
             foreach (var item in task.Data.Where(item => !string.IsNullOrWhiteSpace(item.TaskId)))

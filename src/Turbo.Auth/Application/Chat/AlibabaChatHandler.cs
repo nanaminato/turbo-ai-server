@@ -1,10 +1,9 @@
-﻿using DashScope;
+using DashScope;
 using DashScope.Models;
-using Turbo.Auth.Controllers.AI.Chat.Models;
 using Turbo.Auth.Application.Providers;
 using Turbo.Auth.Application.Routing;
 using Turbo.Auth.Models.AI.Chat;
-using Message = DashScope.Models.Message;
+using DashScopeMessage = DashScope.Models.Message;
 
 namespace Turbo.Auth.Application.Chat;
 
@@ -19,27 +18,32 @@ public class AlibabaChatHandler: IChatHandler
 
     public HandlerType ProviderType => HandlerType.Alibaba;
 
-    public async Task Chat(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response,
-        CancellationToken cancellationToken)
+    public async IAsyncEnumerable<string> Stream(ChatRequest chatBody, ModelKey modelKey,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var dScopeClient = new DashScopeClient(modelKey.SupplierKey!.ApiKey!, _httpClientFactory.CreateClient("AiProvider"));
         var request = new CompletionRequest();
         request.Model = modelKey.Model!;
         request.Input = ParseInput(chatBody);
         request.Parameters = ParseParameters(chatBody);
-        await foreach (var res in dScopeClient.GenerationStreamAsync(request))
+        var finished = false;
+        await foreach (var res in dScopeClient.GenerationStreamAsync(request, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await response.WriteAsync(res.Output.Choices![0].Message.Content, cancellationToken);
+            var choice = res.Output?.Choices?.FirstOrDefault();
+            var reason = choice?.FinishReason ?? res.Output?.FinishReason;
+            finished |= !string.IsNullOrEmpty(reason) && reason != "null";
+            if (choice?.Message?.Content is { Length: > 0 } text) yield return text;
         }
 
-        await response.CompleteAsync();
+
+        if (!finished) throw new EndOfStreamException("DashScope stream ended without a finish reason.");
     }
 
-    private static CompletionInput ParseInput(NoModelChatBody chatBody)
+    private static CompletionInput ParseInput(ChatRequest chatBody)
     {
         var ms = new CompletionInput();
-        ms.Messages = new List<Message>();
+        ms.Messages = new List<DashScopeMessage>();
         foreach (var message in chatBody.Messages!)
         {
             ms.Messages.Add(new ()
@@ -51,7 +55,7 @@ public class AlibabaChatHandler: IChatHandler
 
         return ms;
     }
-    private static CompletionParameters ParseParameters(NoModelChatBody chatBody)
+    private static CompletionParameters ParseParameters(ChatRequest chatBody)
     {
         return new CompletionParameters()
         {

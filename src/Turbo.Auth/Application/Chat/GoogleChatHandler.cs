@@ -1,18 +1,9 @@
-﻿using System.Diagnostics;
-using System.Globalization;
 using System.Text;
-using DotnetGeminiSDK.Client;
-using DotnetGeminiSDK.Config;
-using DotnetGeminiSDK.Model;
-using DotnetGeminiSDK.Model.Request;
-using DotnetGeminiSDK.Requester;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Turbo.Auth.Controllers.AI.Chat.Models;
 using Turbo.Auth.Application.Providers;
 using Turbo.Auth.Application.Routing;
 using Turbo.Auth.Models.AI.Chat;
-using Part = DotnetGeminiSDK.Model.Request.Part;
 
 namespace Turbo.Auth.Application.Chat;
 
@@ -22,70 +13,12 @@ public class GoogleChatHandler : IChatHandler
     private const string ApiVersionSegment = "v1beta";
 
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILogger<ApiRequester> _apiRequesterLogger;
-
-    public GoogleChatHandler(IHttpClientFactory httpClientFactory, ILogger<ApiRequester> apiRequesterLogger)
-    {
-        _httpClientFactory = httpClientFactory;
-        _apiRequesterLogger = apiRequesterLogger;
-    }
+    public GoogleChatHandler(IHttpClientFactory httpClientFactory) => _httpClientFactory = httpClientFactory;
 
     public HandlerType ProviderType => HandlerType.Google;
 
-    public async Task Chat(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response,
-        CancellationToken cancellationToken)
-    {
-        var model = modelKey.Model!;
-
-        // Gemini 2.5 uses native HTTP to preserve system instructions.
-        var useRawHttp = NeedsRawHttp(model);
-
-        if (useRawHttp)
-        {
-            await StreamWithRawHttpAsync(chatBody, modelKey, response, cancellationToken);
-            return;
-        }
-
-        // 经典路径：完全使用 SDK（适用于不需要新参数的旧 Gemini 1.x 等模型）
-        await StreamWithSdkAsync(chatBody, modelKey, response, cancellationToken);
-    }
-
-    private static bool NeedsRawHttp(string model)
-    {
-        var lower = model.ToLowerInvariant();
-        return lower.StartsWith("gemini-2.5");
-    }
-
-    private async Task StreamWithSdkAsync(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response,
-        CancellationToken cancellationToken)
-    {
-        var messages = TransferObject(chatBody.Messages, chatBody.Vision);
-        var geminiClient = new GeminiClient(
-            new GoogleGeminiConfig()
-            {
-                ApiKey = modelKey.SupplierKey!.ApiKey!
-            },
-            new ApiRequester(_httpClientFactory, _apiRequesterLogger)
-        );
-        await geminiClient.StreamTextPrompt(messages, async (chunck) =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            chunck = FillBlock(chunck);
-            var geminiParts = JsonConvert.DeserializeObject<GeminiPart[]>(chunck);
-            if (geminiParts == null) return;
-            foreach (var block in geminiParts)
-            {
-                // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-                if (block != null)
-                {
-                    await response.WriteAsync(block!.Candidates![0]!.Content.Parts[0].Text, cancellationToken);
-                }
-            }
-        });
-    }
-
-    private async Task StreamWithRawHttpAsync(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response,
-        CancellationToken cancellationToken)
+    public async IAsyncEnumerable<string> Stream(ChatRequest chatBody, ModelKey modelKey,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var apiKey = modelKey.SupplierKey!.ApiKey!;
         var model = modelKey.Model!;
@@ -105,7 +38,7 @@ public class GoogleChatHandler : IChatHandler
             payload["systemInstruction"] = systemInstruction;
         }
 
-        var http = _httpClientFactory.CreateClient("AiProvider");
+        using var http = _httpClientFactory.CreateClient("AiProvider");
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
         // Gemini 流式接口需要在 Header 中携带 x-goog-api-key 而非查询串；
         // 为了与 SDK 默认行为兼容（query key），我们同时支持两种。
@@ -134,6 +67,7 @@ public class GoogleChatHandler : IChatHandler
 
         await using var stream = await upstream.Content.ReadAsStreamAsync(cancellationToken);
         using var reader = new StreamReader(stream, Encoding.UTF8);
+        var finished = false;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -149,10 +83,12 @@ public class GoogleChatHandler : IChatHandler
             {
                 token = JToken.Parse(data);
             }
-            catch (JsonException)
+            catch (JsonException exception)
             {
-                continue;
+                throw new InvalidDataException("Invalid Gemini stream event.", exception);
             }
+            if (token["error"] is not null) throw new InvalidOperationException("Gemini stream failed.");
+            finished |= !string.IsNullOrEmpty((string?)token["candidates"]?[0]?["finishReason"]);
             var parts = token["candidates"]?[0]?["content"]?["parts"];
             if (parts is not JArray arr) continue;
             foreach (var part in arr)
@@ -160,10 +96,11 @@ public class GoogleChatHandler : IChatHandler
                 var text = (string?)part["text"];
                 if (!string.IsNullOrEmpty(text))
                 {
-                    await response.WriteAsync(text!, cancellationToken);
+                    yield return text!;
                 }
             }
         }
+        if (!finished) throw new EndOfStreamException("Gemini stream ended without a finish reason.");
     }
 
     private static string ResolveBaseUrl(string? configured)
@@ -177,7 +114,7 @@ public class GoogleChatHandler : IChatHandler
     /// <summary>
     /// 构造 systemInstruction（来自首条 system 消息）与 contents（其余消息）。
     /// </summary>
-    private static (JObject? systemInstruction, JArray contents) BuildContents(NoModelChatBody chatBody)
+    private static (JObject? systemInstruction, JArray contents) BuildContents(ChatRequest chatBody)
     {
         JObject? systemInstruction = null;
         var contents = new JArray();
@@ -280,133 +217,7 @@ public class GoogleChatHandler : IChatHandler
         };
     }
 
-    private static List<Content> TransferObject(Message[]? chatBodyMessages, bool vision = false)
-    {
-        var parts = new List<Content>();
-
-        if (!vision)
-        {
-            foreach (var message in chatBodyMessages!)
-            {
-                switch (message.Role!.ToLower())
-                {
-                    case OpenAiRole.SystemRole:
-                        parts.Add(new()
-                        {
-                            Role = GoogleRoles.User,
-                            Parts = new List<Part>()
-                            {
-                                new()
-                                {
-                                    Text = message!.Content! as string,
-                                }
-                            }
-                        });
-                        break;
-                    case OpenAiRole.UserRole:
-                        parts.Add(new()
-                        {
-                            Role = GoogleRoles.User,
-                            Parts = new List<Part>()
-                            {
-                                new()
-                                {
-                                    Text = message!.Content! as string
-                                }
-                            }
-                        });
-
-                        break;
-                    case OpenAiRole.Assistant:
-                        parts.Add(new()
-                        {
-                            Role = GoogleRoles.Model,
-                            Parts = new List<Part>()
-                            {
-                                new()
-                                {
-                                    Text = message!.Content! as string
-                                }
-                            }
-                        });
-                        break;
-                    default:
-                        parts.Add(new()
-                        {
-                            Role = GoogleRoles.User,
-                            Parts = new List<Part>()
-                            {
-                                new()
-                                {
-                                    Text = message!.Content!,
-                                }
-                            }
-                        });
-                        break;
-                }
-            }
-        }
-        else
-        {
-            var message = chatBodyMessages.Last();
-            var content = new Content();
-            content.Role = GoogleRoles.User;
-            parts.Add(content);
-            var contentParts = new List<Part>();
-            content.Parts = contentParts;
-            foreach (var vc in JsonConvert.DeserializeObject<VisionMessage>(JsonConvert.SerializeObject(message))!
-                         .Content)
-            {
-                if (vc.Type == "text")
-                {
-                    contentParts.Add(new Part()
-                    {
-                        Text = vc.Text
-                    });
-                }
-                else
-                {
-                    var inlineData = GetInlineData(vc.VisionImage.Url);
-                    contentParts.Add(new Part()
-                    {
-                        InlineData = inlineData
-                    });
-                }
-            }
-        }
-
-
-        return parts;
-    }
-
-    private static InlineData? GetInlineData(string url)
-    {
-        var parts = url.Split(',');
-        var mimeType = parts[0].Split(':')[1].Split(';')[0];
-        var data = parts[1];
-        return new InlineData()
-        {
-            Data = data,
-            MimeType = mimeType
-        };
-    }
-
-    private string FillBlock(string chunck)
-    {
-        var light = chunck.Trim();
-        if (!light.StartsWith('['))
-        {
-            light = '[' + light;
-        }
-
-        if (!light.EndsWith(']'))
-        {
-            light += ']';
-        }
-
-        return light;
-    }
-}
+ }
 
 public class GoogleRoles
 {

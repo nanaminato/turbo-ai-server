@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Turbo.Auth.Models.Suppliers;
 
 namespace Turbo.Auth.Data.Contexts;
@@ -19,7 +19,7 @@ public partial class KeyContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseMySql(_configuration.GetConnectionString("ciko"), ServerVersion.Parse("8.4.6-mysql"));
+        if (!optionsBuilder.IsConfigured) optionsBuilder.UseMySql(_configuration.GetConnectionString("ciko"), ServerVersion.Parse("8.4.6-mysql"));
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

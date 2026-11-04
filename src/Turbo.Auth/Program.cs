@@ -169,7 +169,10 @@ builder.Services.AddScoped<IFileContentExtractor, FileContentExtractor>();
 builder.Services.AddScoped<IPdfDocumentProcessor, PdfDocumentProcessor>();
 builder.Services.AddScoped<IWordDocumentProcessor, WordDocumentProcessor>();
 builder.Services.AddScoped<ITextDocumentProcessor, TextDocumentProcessor>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<RouteReloadGate>();
 builder.Services.AddScoped<IKeyLoader, KeyLoader>();
+builder.Services.AddHostedService<RoutingRefreshService>();
 builder.Services.AddScoped<IKeyPoolRepository, StableKeyPoolRepository>();
 builder.Services.Configure<AiRoutingOptions>(builder.Configuration.GetSection("AiRouting"));
 builder.Services.AddSingleton<IRouteHealthTracker, RouteHealthTracker>();
@@ -181,6 +184,9 @@ builder.Services.AddScoped<IChatHandler, GoogleChatHandler>();
 builder.Services.AddScoped<IChatHandler, AnthropicChatHandler>();
 builder.Services.AddScoped<IChatHandler, AlibabaChatHandler>();
 builder.Services.AddScoped<IChatHandlerObtain, ChatHandlerObtain>();
+builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<Turbo.Auth.Application.Providers.OpenAiClientFactory>();
+builder.Services.AddScoped<Turbo.Auth.Application.Sync.DataSyncService>();
 builder.Services.AddSingleton<IAccountPasswordService, AccountPasswordService>();
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
 
@@ -321,11 +327,6 @@ app.MapControllers();
 app.MapFallbackToFile("index.html");
 
 
-using (var startupScope = app.Services.CreateScope())
-{
-    var loader = startupScope.ServiceProvider.GetRequiredService<IKeyLoader>();
-    await loader.LoadKeys();
-}
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     var addresses = app.Urls;

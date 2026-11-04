@@ -1,4 +1,4 @@
-﻿using Turbo.Auth.Application.Providers;
+using Turbo.Auth.Application.Providers;
 
 namespace Turbo.Auth.Application.Chat;
 

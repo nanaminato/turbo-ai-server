@@ -46,3 +46,15 @@ dotnet test Turbo.AI.Server.sln --configuration Release --nologo
 常规测试使用临时 Data Protection provider、模拟邮件发送器和内存存储，覆盖首次设置密码、令牌篡改/过期/一次使用、邮箱匹配、发送冷却和禁用状态，不发送真实邮件。
 
 `PasswordResetDatabaseTests` 是显式运行的 MySQL 集成测试：在临时环境变量 `TURBO_TEST_MYSQL` 设置有建库权限的测试连接，用 `dotnet test --filter FullyQualifiedName~Sql_admin_activation_revokes_sessions_and_password_reset_is_atomic` 执行。测试只在自己生成的 `turbo_reset_test_<guid>` 库运行，结束删除该库，验证 SQL 管理员初始化、密码哈希、会话撤销、并发重置和重复脚本保护。不要将连接凭据写进仓库。
+
+## 架构回归与数据库联调
+
+架构实施与上线边界见 [审查记录](architecture-review.md)。普通测试新增真实 SQLite 事务、供应商模拟 SSE、IndexedDB 对应前端回归和双实例版本刷新测试，不调用真实供应商。
+
+MySQL 并发与触发器必须额外联调：临时配置 `TURBO_TEST_MYSQL` 为有建库权限的测试连接，运行：
+
+```bash
+dotnet test tests/Turbo.Auth.Tests/Turbo.Auth.Tests.csproj --filter FullyQualifiedName~Mysql_schema_triggers_and_parallel_sync_commits_are_consistent
+```
+
+该显式测试仅创建并清理 `turbo_arch_test_<guid>` 临时库，验证完整初始化 SQL、真实共享账户锁、并发幂等操作、连续游标和路由触发器。不得用生产数据库替代隔离测试库。SQLite 通过不代表此 MySQL 联调已经完成。

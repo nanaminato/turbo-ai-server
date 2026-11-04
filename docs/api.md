@@ -30,22 +30,26 @@ Authorization: Bearer <token>
 
 ## 聊天
 
-调用者须具有 `vip` 角色，且 `model` 必须已在管理员端启用并绑定到可用密钥。服务以流式文本响应：
+调用者须已认证并获得持久化策略中的 `chat` 功能授权，`model` 必须配置可用路由。客户端声明 `Accept: text/event-stream` 时返回 SSE：
 
 ```bash
 curl -N -X POST http://localhost:5111/api/ai/chat \
   -H 'Authorization: Bearer <token>' \
   -H 'Content-Type: application/json' \
-  -d '{
-    "model":"gpt-4.1-mini",
-    "messages":[{"role":"user","content":"用一句话介绍这个服务"}],
-    "stream":true,
-    "max_completion_tokens":256,
-    "temperature":0.7
-  }'
+  -H 'Accept: text/event-stream' \
+  -d '{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"用一句话介绍这个服务"}],"stream":true,"vision":false}'
 ```
 
-常用字段包括 `messages`、`model`、`max_completion_tokens`、`temperature`、`top_p`、`presence_penalty`、`frequency_penalty` 与 `vision`。`GET /api/ai/models`（`user` 角色）返回当前可选模型。
+```text
+data: {"type":"delta","text":"你好","code":null}
+
+data: {"type":"completed","text":null,"code":null}
+
+```
+
+只在收到 `completed` 后标记成功；`error` 或缺少完成事件的 EOF 是中断。输出前失败使用 HTTP ProblemDetails；输出后失败发送 `error` 事件，错误代码为 `ai_unavailable`。旧客户端未声明 SSE 时仍收到纯文本，输出后失败会断开连接。JSON 文本可包含转义换行，客户端必须跨网络分片解码 UTF-8 和事件边界。
+
+请求只包含 `messages`、`model`、`stream`、`vision`。采样、推理和输出参数由供应商使用模型默认值；旧客户端发送的生成参数不再绑定。Anthropic 协议必填的 `max_tokens` 保持 8192 兜底。`GET /api/ai/models` 返回当前可选模型，要求已认证。
 
 ## 模型与密钥管理
 
@@ -75,9 +79,9 @@ curl -N -X POST http://localhost:5111/api/ai/chat \
 
 ## 其他接口
 
-- `POST /api/media/tts`、`/whisper-translate`、`/whisper-transcription`、`/dall-e`、`/gpt-image`：OpenAI-compatible 媒体能力（`vip`）。
+- `POST /api/media/tts`、`/whisper-translate`、`/whisper-transcription`、`/dall-e`、`/gpt-image`：OpenAI-compatible 媒体能力（分别检查对应功能策略）。
 - `POST /api/fileextractor`：提取 TXT、DOCX、PDF 内容。
-- `/api/request` 和 `/api/receiver`：聊天历史、消息与任务同步。
+- `/api/sync/data`：版本化聊天历史、消息与任务同步。`/api/request` 和 `/api/receiver` 保留旧客户端入口，写入也生成变更日志。
 - `GET /api/open/model`：获取公开模型列表。
 
 接口的字段以运行中的 Swagger 文档为准；生产环境如需对外发布 OpenAPI，请在反向代理或应用层显式启用并进行访问控制。
@@ -99,3 +103,29 @@ curl -N -X POST http://localhost:5111/api/ai/chat \
 - 未启用邮件服务时两者返回 503 与 `code: reset_unavailable`；超出每 IP 限制返回 429。
 
 邮箱只从已存储的账户读取，发件配置与前端地址只从服务端配置读取。链接 30 分钟有效，成功设置密码后所有原登录会话和之前的重置链接失效。无需登录也可激活 SQL 创建的空密码账户，不新增数据库表；已有数据库无需迁移。应用内中英日错误提示和邮件文案随请求语言切换。
+
+## 版本化数据同步
+
+`GET /api/sync/data?cursor=0` 与 `POST /api/sync/data` 要求 `user` 角色和 `X-Sync-Account: <当前账户 ID>`。请求头必须与认证主体一致，避免账户切换或令牌刷新导致错投。
+
+写操作示例：
+
+```json
+{
+  "operationId": "11111111-1111-4111-8111-111111111111",
+  "kind": "message",
+  "action": "upsert",
+  "entityId": "200",
+  "historyId": 100,
+  "payload": {"role": "user", "content": "hello", "finish": true}
+}
+```
+
+- `kind` 为 `history`、`message` 或 `task`；`action` 为 `upsert` 或 `delete`。历史及消息实体 ID 是安全整数的十进制字符串，任务 ID 最多 255 字符。
+- 先创建会话，再提交消息；消息操作需要 `historyId`。历史载荷包含 `title`，消息载荷包含 `role/content/fileList/model/finish`，任务使用原 `task_id/task_type/date/images/videos` 字段。
+- 载荷中的账户、数据库主键及导航对象不作为所有权依据；所有权来自认证主体。任务不能跨账户覆盖。
+- 写成功返回 `{version}`；相同操作 ID 和相同载荷重试返回原版本。相同 ID 的不同载荷返回 409；消息所属会话不存在也返回 409。网络重试必须保留原操作 ID。
+- 拉取返回 `{cursor, reset, hasMore, changes}`。每项包含 `version/kind/action/entityId/historyId/payload`；删除项载荷为空。游标为 0 时返回完整当前快照和 `reset:true`，随后每批最多 200 条事件。
+- 数据、版本、删除事件和操作幂等记录在同一账户事务内提交；客户端也必须在本地事务提交数据和游标后再读取下一页。冲突采用服务端接收顺序的最后写入，不提供字段级合并。
+
+首次升级导入、旧记录删除歧义、保留策略及上线步骤见 [架构实施记录](architecture-review.md)。

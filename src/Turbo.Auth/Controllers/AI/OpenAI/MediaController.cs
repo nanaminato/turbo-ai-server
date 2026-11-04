@@ -1,3 +1,4 @@
+using Turbo.Auth.Application.Providers;
 using Turbo.Auth.Security.FeatureAccess;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,30 +18,18 @@ namespace Turbo.Auth.Controllers.AI.OpenAI;
 public class MediaController : Controller
 {
     private readonly QuickModel _quickModel;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly OpenAiClientFactory _clients;
     private readonly ILogger<MediaController> _logger;
 
     public MediaController(
         QuickModel quickModel,
-        IHttpClientFactory httpClientFactory,
+        OpenAiClientFactory clients,
         ILogger<MediaController> logger
     )
     {
         _quickModel = quickModel;
-        _httpClientFactory = httpClientFactory;
+        _clients = clients;
         _logger = logger;
-    }
-
-    private OpenAiClient BuildClient(ModelKey modelKey, TimeSpan? timeout = null)
-    {
-        var baseUrl = ResolveBaseUrl(modelKey.SupplierKey?.BaseUrl);
-        var apiKey = modelKey.SupplierKey!.ApiKey!;
-        var http = _httpClientFactory.CreateClient("AiProvider");
-        if (timeout.HasValue)
-        {
-            http.Timeout = timeout.Value;
-        }
-        return new OpenAiClient(apiKey, baseUri: new Uri(baseUrl));
     }
 
     [FeatureAccess("tts")]
@@ -49,7 +38,7 @@ public class MediaController : Controller
         CancellationToken cancellationToken)
     {
         var modelKey = _quickModel.GetModelAndKey(speechRequest.Model!);
-        var client = BuildClient(modelKey);
+        using var client = _clients.Create(modelKey);
 
         // 便捷重载：直接返回 byte[]，无需处理 SSE 流式分片。
         var audio = await client.Audio.CreateSpeechAsync(
@@ -74,7 +63,7 @@ public class MediaController : Controller
         CancellationToken cancellationToken)
     {
         var modelKey = _quickModel.GetModelAndKey(request.Model!);
-        var client = BuildClient(modelKey);
+        using var client = _clients.Create(modelKey);
 
         var fileBytes = Convert.FromBase64String(request.File!);
         var req = new CreateTranslationRequest
@@ -96,7 +85,7 @@ public class MediaController : Controller
         CancellationToken cancellationToken)
     {
         var modelKey = _quickModel.GetModelAndKey(request.Model!);
-        var client = BuildClient(modelKey);
+        using var client = _clients.Create(modelKey);
 
         var fileBytes = Convert.FromBase64String(request.File!);
         var req = new CreateTranscriptionRequest
@@ -119,7 +108,7 @@ public class MediaController : Controller
         CancellationToken cancellationToken)
     {
         var modelKey = _quickModel.GetModelAndKey(createImage.Model!);
-        var client = BuildClient(modelKey, TimeSpan.FromMinutes(5));
+        using var client = _clients.Create(modelKey, TimeSpan.FromMinutes(5));
 
         // dall-e-3 强制 n=1
         var n = createImage.Model == "dall-e-3" ? 1 : createImage.N;
@@ -144,7 +133,7 @@ public class MediaController : Controller
         CancellationToken cancellationToken)
     {
         var modelKey = _quickModel.GetModelAndKey(createImage.Model!);
-        var client = BuildClient(modelKey, TimeSpan.FromMinutes(5));
+        using var client = _clients.Create(modelKey, TimeSpan.FromMinutes(5));
 
         var req = new CreateImageRequest
         {
@@ -164,21 +153,6 @@ public class MediaController : Controller
     }
 
     // ---- helpers ----
-
-    private static string ResolveBaseUrl(string? configured)
-    {
-        if (string.IsNullOrWhiteSpace(configured))
-        {
-            return "https://api.openai.com/v1";
-        }
-        var trimmed = configured.Trim().TrimEnd('/');
-        if (!trimmed.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) &&
-            !trimmed.Contains("/v", StringComparison.Ordinal))
-        {
-            trimmed += "/v1";
-        }
-        return trimmed;
-    }
 
     private static float? ToFloat(double? value)
     {

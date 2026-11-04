@@ -1,12 +1,11 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Turbo.Auth.Application.Providers;
 using Turbo.Auth.Application.Routing;
-using Turbo.Auth.Controllers.AI.Chat.Models;
 using Turbo.Auth.Models.AI.Chat;
 using tryAGI.OpenAI;
-using Message = Turbo.Auth.Controllers.AI.Chat.Models.Message;
-using VisionMessage = Turbo.Auth.Controllers.AI.Chat.Models.VisionMessage;
+using Message = Turbo.Auth.Application.Chat.Message;
+using VisionMessage = Turbo.Auth.Application.Chat.VisionMessage;
 
 namespace Turbo.Auth.Application.Chat;
 
@@ -17,25 +16,15 @@ namespace Turbo.Auth.Application.Chat;
 /// </summary>
 public class OpenAiChatHandler : IChatHandler
 {
-    private readonly IHttpClientFactory _httpClientFactory;
-
-    public OpenAiChatHandler(IHttpClientFactory httpClientFactory)
-    {
-        _httpClientFactory = httpClientFactory;
-    }
+    private readonly OpenAiClientFactory _clients;
+    public OpenAiChatHandler(OpenAiClientFactory clients) => _clients = clients;
 
     public HandlerType ProviderType => HandlerType.Openai;
 
-    public async Task Chat(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response,
-        CancellationToken cancellationToken)
+    public async IAsyncEnumerable<string> Stream(ChatRequest chatBody, ModelKey modelKey,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var baseUrl = ResolveBaseUrl(modelKey.SupplierKey?.BaseUrl);
-        var apiKey = modelKey.SupplierKey!.ApiKey!;
-
-        // 共享的 HttpClient 由 IHttpClientFactory 管理；tryAGI 默认 Bearer 鉴权，
-        // 由构造器根据 apiKey 设置 Authorization 头，不需要手动添加 EndPointAuthorization。
-        var http = _httpClientFactory.CreateClient("AiProvider");
-        var client = new OpenAiClient(apiKey, baseUri: new Uri(baseUrl));
+        using var client = _clients.Create(modelKey);
 
         var model = modelKey.Model!;
 
@@ -55,19 +44,22 @@ public class OpenAiChatHandler : IChatHandler
             CreateChatCompletionRequestVariant2 = variant,
         };
 
+        var finished = false;
         // CreateChatCompletionAsStreamAsync 在 tryAGI 4.2.10 中按 string 输出（基于内部隐式转换）。
         await foreach (var chunk in client.Chat.CreateChatCompletionAsStreamAsync(request, cancellationToken: cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            finished |= chunk.Choices?.Any(choice => choice.FinishReason.HasValue) == true;
             if (string.IsNullOrEmpty(chunk)) continue;
-            await response.WriteAsync(chunk, cancellationToken);
+            yield return chunk;
         }
+        if (!finished) throw new EndOfStreamException("OpenAI stream ended without a finish reason.");
 
-        await response.CompleteAsync();
+
     }
 
     /// <summary>
-    /// 把 <see cref="NoModelChatBody"/> 内的 <see cref="Message"/> 列表转换为 tryAGI 的
+    /// 把 <see cref="ChatRequest"/> 内的 <see cref="Message"/> 列表转换为 tryAGI 的
     /// <see cref="ChatCompletionRequestMessage"/> 列表。支持文本 / Vision (text + image_url) 复合消息。
     /// </summary>
     private static List<ChatCompletionRequestMessage> TransferMessages(
@@ -89,16 +81,16 @@ public class OpenAiChatHandler : IChatHandler
                     }
                     else
                     {
-                        var text = ExtractText(message.Content);
+                        var text = ExtractText((object?)message.Content);
                         result.Add(text.AsUserMessage());
                     }
                     break;
                 case OpenAiRole.Assistant:
-                    var assistantText = ExtractText(message.Content);
+                    var assistantText = ExtractText((object?)message.Content);
                     result.Add(assistantText.AsAssistantMessage());
                     break;
                 default:
-                    var fallback = ExtractText(message.Content);
+                    var fallback = ExtractText((object?)message.Content);
                     result.Add(fallback.AsUserMessage());
                     break;
             }
@@ -109,7 +101,7 @@ public class OpenAiChatHandler : IChatHandler
     private static ChatCompletionRequestMessage ConvertSystemMessage(Message message)
     {
         // System 消息只支持文本内容；如果是结构化的，直接取 Content 字符串部分。
-        var text = ExtractText(message.Content);
+        var text = ExtractText((object?)message.Content);
         return text.AsSystemMessage();
     }
 
@@ -185,21 +177,6 @@ public class OpenAiChatHandler : IChatHandler
         return content.ToString() ?? string.Empty;
     }
 
-    private static string ResolveBaseUrl(string? configured)
-    {
-        if (string.IsNullOrWhiteSpace(configured))
-        {
-            // OpenAiClient.DefaultBaseUrl = "https://api.openai.com/v1"
-            return "https://api.openai.com/v1";
-        }
-        var trimmed = configured.Trim().TrimEnd('/');
-        // 兼容配置只写 host 的情况：自动补 /v1
-        if (!trimmed.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) &&
-            !trimmed.Contains("/v", StringComparison.Ordinal))
-        {
-            trimmed += "/v1";
-        }
-        return trimmed;
-    }
+
 
 }

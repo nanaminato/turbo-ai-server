@@ -48,7 +48,7 @@ public class LocalizationTests
             var context = new DefaultHttpContext();
             context.RequestServices = new ServiceCollection().AddLogging().BuildServiceProvider();
             context.Response.Body = new MemoryStream();
-            var controller = new Turbo.Auth.Controllers.AI.Chat.ChatController(null!, null!, null!, null!, null!,
+            var controller = new Turbo.Auth.Controllers.AI.Chat.ChatController(null!, null!, null!,
                 Microsoft.Extensions.Logging.Abstractions.NullLogger<Turbo.Auth.Controllers.AI.Chat.ChatController>.Instance)
             {
                 ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = context }

@@ -2,5 +2,5 @@
 
 public interface IKeyLoader
 {
-    public Task LoadKeys();
+    public Task LoadKeys(CancellationToken cancellationToken = default);
 }

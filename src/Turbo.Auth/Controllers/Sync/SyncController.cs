@@ -21,7 +21,7 @@ public class SyncController: Controller
     {
         try
         {
-            await _keyLoader.LoadKeys();
+            await _keyLoader.LoadKeys(HttpContext.RequestAborted);
             return Ok(new{msg=ApiMessages.Get("keys_loaded")});
         }
         catch (Exception)

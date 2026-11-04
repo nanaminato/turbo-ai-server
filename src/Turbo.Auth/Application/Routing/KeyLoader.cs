@@ -1,26 +1,32 @@
-﻿using Microsoft.EntityFrameworkCore;
+using System.Data;
+using Microsoft.EntityFrameworkCore;
 using Turbo.Auth.Data.Contexts;
-using Turbo.Auth.Application.Routing;
 
 namespace Turbo.Auth.Application.Routing;
 
-public class KeyLoader: IKeyLoader
+public sealed class KeyLoader(KeyContext database, IKeyPoolRepository pool, RouteReloadGate gate) : IKeyLoader
 {
-    private KeyContext _keyContext;
-    private IKeyPoolRepository _keyPoolRepository;
-    public KeyLoader(KeyContext keyContext, IKeyPoolRepository keyPoolRepository)
+    public async Task LoadKeys(CancellationToken cancellationToken = default)
     {
-        _keyContext = keyContext;
-        _keyPoolRepository = keyPoolRepository;
-    }
-    public async Task LoadKeys()
-    {
-        var keys = await _keyContext.SupplierKeys!
-            .Where(k=>k.Enable == true)
-            .Include(k => k.ModelKeyBinds)!
-            .ThenInclude(k => k.Model)
-            .ToListAsync();
-        await _keyPoolRepository.Replace(keys);
-        Console.WriteLine("loads success!");
+        await gate.Mutex.WaitAsync(cancellationToken);
+        try
+        {
+            database.Database.SetCommandTimeout(5);
+            await using var transaction = await database.Database.BeginTransactionAsync(database.Database.ProviderName?.Contains("MySql", StringComparison.OrdinalIgnoreCase) == true
+                ? IsolationLevel.RepeatableRead : IsolationLevel.Serializable, cancellationToken);
+            var revision = await database.Database.SqlQuery<long>($"SELECT Version AS Value FROM RoutingConfiguration WHERE Id=1")
+                .SingleAsync(cancellationToken);
+            if (gate.LoadedRevision != revision)
+            {
+                var keys = await database.SupplierKeys!.AsNoTracking().Where(key => key.Enable)
+                    .Include(key => key.ModelKeyBinds)!.ThenInclude(bind => bind.Model).ToListAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                await pool.Replace(keys);
+                gate.LoadedRevision = revision;
+            }
+            else await transaction.CommitAsync(cancellationToken);
+            gate.Checked();
+        }
+        finally { gate.Mutex.Release(); }
     }
 }

@@ -1,4 +1,3 @@
-﻿using Turbo.Auth.Controllers.AI.Chat.Models;
 using Turbo.Auth.Application.Providers;
 using Turbo.Auth.Application.Routing;
 using Turbo.Auth.Models.AI;
@@ -10,6 +9,5 @@ public interface IChatHandler
 {
     HandlerType ProviderType { get; }
 
-    Task Chat(NoModelChatBody chatBody, ModelKey modelKey, HttpResponse response,
-        CancellationToken cancellationToken);
+    IAsyncEnumerable<string> Stream(ChatRequest chatBody, ModelKey modelKey, CancellationToken cancellationToken);
 }

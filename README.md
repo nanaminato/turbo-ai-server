@@ -5,6 +5,7 @@
 ## 文档
 
 - [部署与配置](docs/deployment.md)：本地启动、生产配置和前端部署。
+- [架构审查与实施记录](docs/architecture-review.md)：逐项优化、协议升级与验证限制。
 - [架构](docs/architecture.md)：组件职责、请求路径和扩展点。
 - [API 使用](docs/api.md)：认证、聊天和管理接口。
 - [开发与测试](docs/development.md)：构建、测试和数据库准备。

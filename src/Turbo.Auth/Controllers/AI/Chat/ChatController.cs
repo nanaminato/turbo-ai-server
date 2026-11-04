@@ -15,102 +15,66 @@ namespace Turbo.Auth.Controllers.AI.Chat;
 [Route("api/ai")]
 public class ChatController: Controller
 {
-    private IChatHandlerObtain _chatHandlerObtain;
-    private QuickModel _quickModel;
-    private IRouteHealthTracker _routeHealthTracker;
-    private PlayMixModelBacker _backer;
-    private IModelRepository _modelRepository;
+    private readonly IChatService _chat;
+    private readonly QuickModel _quickModel;
+    private readonly IModelRepository _modelRepository;
     private readonly ILogger<ChatController> _logger;
-    public ChatController(IChatHandlerObtain chatHandlerObtain, 
-        QuickModel quickModel, IRouteHealthTracker routeHealthTracker, PlayMixModelBacker backer,
-        IModelRepository modelRepository, ILogger<ChatController> logger
-    )
+    public ChatController(IChatService chat, QuickModel quickModel,
+        IModelRepository modelRepository, ILogger<ChatController> logger)
     {
-        _chatHandlerObtain = chatHandlerObtain;
+        _chat = chat;
         _quickModel = quickModel;
-        _routeHealthTracker = routeHealthTracker;
-        _backer = backer;
-        _modelRepository = modelRepository; 
+        _modelRepository = modelRepository;
         _logger = logger;
     }
-    
-    
+
     [FeatureAccess("chat")]
     [HttpPost("chat")]
     public async Task Chat(NoModelChatBody chatBody)
     {
+        var started = false;
+        var framed = Request.Headers.Accept.ToString().Split(',').Any(value => value.Trim().StartsWith("text/event-stream", StringComparison.OrdinalIgnoreCase));
         try
         {
             if (string.IsNullOrWhiteSpace(chatBody.Model))
             {
-                await WriteProblem(StatusCodes.Status400BadRequest, ApiMessages.Get("model_required"));
+                await WriteProblem(400, ApiMessages.Get("model_required"));
                 return;
             }
-
-            var failedRouteIds = new HashSet<int>();
-            Exception? lastRouteFailure = null;
-            while (true)
+            await foreach (var chunk in _chat.Stream(chatBody, HttpContext.RequestAborted))
             {
-                ModelKey modelKey;
-                try
+                started = true;
+                if (framed) await ChatStreamWriter.Write(Response, "delta", HttpContext.RequestAborted, text: chunk);
+                else
                 {
-                    modelKey = _quickModel.GetModelAndKey(chatBody.Model, failedRouteIds);
-                }
-                catch (KeyNotFoundException) when (lastRouteFailure != null)
-                {
-                    throw new InvalidOperationException("所有候选供应商路由均调用失败。", lastRouteFailure);
-                }
-
-                modelKey.Model = _backer.Backer(modelKey.Model!);
-                try
-                {
-                    var handler = _chatHandlerObtain.GetHandler
-                        ((HandlerType)modelKey.SupplierKey!.RequestIdentifier);
-                    await handler.Chat(chatBody, modelKey, Response, HttpContext.RequestAborted);
-                    _routeHealthTracker.RecordSuccess(modelKey.RouteId);
-                    return;
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception exception)
-                {
-                    _routeHealthTracker.RecordFailure(modelKey.RouteId);
-                    if (Response.HasStarted)
-                    {
-                        throw;
-                    }
-
-                    failedRouteIds.Add(modelKey.RouteId);
-                    lastRouteFailure = exception;
-                    _logger.LogWarning(exception,
-                        "AI route failed before writing a response. RouteId: {RouteId}; TraceId: {TraceId}",
-                        modelKey.RouteId, HttpContext.TraceIdentifier);
+                    Response.ContentType = "text/plain; charset=utf-8";
+                    await Response.WriteAsync(chunk, HttpContext.RequestAborted);
+                    await Response.Body.FlushAsync(HttpContext.RequestAborted);
                 }
             }
+            if (framed) await ChatStreamWriter.Write(Response, "completed", HttpContext.RequestAborted);
         }
         catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
         {
-            _logger.LogInformation("AI chat request cancelled. TraceId: {TraceId}", HttpContext.TraceIdentifier);
+            HttpContext.Abort();
         }
-        catch (KeyNotFoundException exception)
+        catch (Exception exception)
         {
-            _logger.LogWarning(exception, "AI chat model is unavailable. TraceId: {TraceId}", HttpContext.TraceIdentifier);
-            await WriteProblem(StatusCodes.Status400BadRequest, ApiMessages.Get("model_unavailable"));
-        }
-        catch (NotSupportedException exception)
-        {
-            _logger.LogWarning(exception, "AI chat provider is unsupported. TraceId: {TraceId}", HttpContext.TraceIdentifier);
-            await WriteProblem(StatusCodes.Status400BadRequest, ApiMessages.Get("chat_unsupported"));
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(
-                "AI chat request failed. TraceId: {TraceId}; ExceptionType: {ExceptionType}",
-                HttpContext.TraceIdentifier,
-                e.GetType().Name);
-            await WriteProblem(StatusCodes.Status500InternalServerError, ApiMessages.Get("ai_unavailable"));
+            _logger.LogError("AI chat failed. TraceId: {TraceId}; ExceptionType: {ExceptionType}",
+                HttpContext.TraceIdentifier, exception.GetType().Name);
+            if (started || Response.HasStarted)
+            {
+                if (framed) await ChatStreamWriter.Write(Response, "error", HttpContext.RequestAborted, code: "ai_unavailable");
+                else HttpContext.Abort();
+                return;
+            }
+            var (status, code) = exception switch
+            {
+                KeyNotFoundException => (400, "model_unavailable"),
+                NotSupportedException => (400, "chat_unsupported"),
+                _ => (502, "ai_unavailable")
+            };
+            await WriteProblem(status, ApiMessages.Get(code));
         }
     }
 

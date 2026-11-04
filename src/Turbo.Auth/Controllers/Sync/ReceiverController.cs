@@ -1,104 +1,45 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json.Linq;
+using Turbo.Auth.Application.Sync;
 using Turbo.Auth.Models.Sync.Messages;
 using Turbo.Auth.Models.Sync.Tasks;
-using Turbo.Auth.Repositories.Sync;
+using Turbo.Auth.Security.FeatureAccess;
 
 namespace Turbo.Auth.Controllers.Sync;
 
-[ApiController]
-[Authorize(Policy = "user")]
-[Route("api/[controller]")]
-public class ReceiverController: Controller
+// Compatibility endpoints also enter the change log, so older clients cannot bypass replication.
+[ApiController, Authorize(Policy = "user"), Route("api/[controller]")]
+public sealed class ReceiverController(DataSyncService sync) : ControllerBase
 {
-    private IHistoryRepository _history;
-    private IMessageRepository _message;
-    private ITaskRepository _task;
-    private IIdGetter _idGetter;
-    public ReceiverController(IHistoryRepository history,
-        IMessageRepository message, ITaskRepository task, IIdGetter idGetter)
+    private async Task<IActionResult> Apply(string kind, string action, string id, object? payload = null, long? historyId = null)
     {
-        _history = history;
-        _message = message;
-        _task = task;
-        _idGetter = idGetter;
+        try
+        {
+            await sync.Apply(FeatureIdentity.AccountId(User)!.Value,
+                new SyncMutation(Guid.NewGuid(), kind, action, id, historyId, payload is null ? null : JToken.FromObject(payload)), HttpContext.RequestAborted);
+            return Ok();
+        }
+        catch (SyncConflictException) { return Conflict(new {code = "sync_conflict"}); }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (ArgumentException) { return BadRequest(new {code = "invalid_sync_operation"}); }
     }
-
     [HttpPost("history")]
-    public async Task<IActionResult> ReceiveHistory(ChatHistory history)
-    {
-        var userId = _idGetter.GetId(User);
-        history.UserId = userId;
-        await _history.AddHistory(history);
-        return Ok();
-    }
-
-    [HttpPost("message")]
-    public async Task<IActionResult> ReceiveMessage(MMessage mMessage)
-    {
-        var userId = _idGetter.GetId(User);
-        mMessage.UserId = userId;
-        await _message.AddMessage(mMessage);
-        return Ok();
-    }
-
-    [HttpPost("task")]
-    public async Task<IActionResult> ReceiveTask(GenerateTask task)
-    {
-        var userId = _idGetter.GetId(User);
-        task.AccountId = userId;
-        await _task.AddTask(task);
-        return Ok();
-    }
-
+    public Task<IActionResult> ReceiveHistory(ChatHistory history) => Apply("history", "upsert", history.DataId.ToString(), history);
     [HttpPut("history")]
-    public async Task<IActionResult> UpdateHistory(ChatHistory history)
-    {
-        var userId = _idGetter.GetId(User);
-        history.UserId = userId;
-        await _history.UpdateHistory(history);
-        return Ok();
-    }
-
+    public Task<IActionResult> UpdateHistory(ChatHistory history) => Apply("history", "upsert", history.DataId.ToString(), history);
+    [HttpPost("message")]
+    public Task<IActionResult> ReceiveMessage(MMessage message) => Apply("message", "upsert", message.DataId.ToString(), message, message.HistoryDataId);
     [HttpPut("message")]
-    public async Task<IActionResult> UpdateMessage(MMessage mMessage)
-    {
-        var userId = _idGetter.GetId(User);
-        mMessage.UserId = userId;
-        await _message.UpdateMessage(mMessage);
-        return Ok();
-    }
-
+    public Task<IActionResult> UpdateMessage(MMessage message) => Apply("message", "upsert", message.DataId.ToString(), message, message.HistoryDataId);
+    [HttpPost("task")]
+    public Task<IActionResult> ReceiveTask(GenerateTask task) => Apply("task", "upsert", task.TaskId, task);
     [HttpPut("task")]
-    public async Task<IActionResult> UpdateTask(GenerateTask task)
-    {
-        var userId = _idGetter.GetId(User);
-        task.AccountId = userId;
-        await _task.UpdateOrInsertTask(task);
-        return Ok();
-    }
-
+    public Task<IActionResult> UpdateTask(GenerateTask task) => Apply("task", "upsert", task.TaskId, task);
     [HttpDelete("history/{historyDataId}")]
-    public async Task<IActionResult> DeleteHistory(long historyDataId)
-    {
-        var userId = _idGetter.GetId(User);
-        var id = await _history.GetHistoryIdByProvides(userId, historyDataId);
-        await _history.DeleteHistoryByHistoryId(id);
-        return Ok();
-    }
+    public Task<IActionResult> DeleteHistory(long historyDataId) => Apply("history", "delete", historyDataId.ToString());
     [HttpDelete("message/{historyDataId}/{messageDataId}")]
-    public async Task<IActionResult> DeleteMessage(long historyDataId,long messageDataId)
-    {
-        var userId = _idGetter.GetId(User);
-        await _message.DeleteMessage(userId, historyDataId, messageDataId);
-        return Ok();
-    }
-
+    public Task<IActionResult> DeleteMessage(long historyDataId, long messageDataId) => Apply("message", "delete", messageDataId.ToString(), historyId: historyDataId);
     [HttpDelete("task/{taskId}")]
-    public async Task<IActionResult> DeleteTask(string taskId)
-    {
-        var userId = _idGetter.GetId(User);
-        await _task.DeleteTaskByTaskId(taskId, userId);
-        return Ok();
-    }
+    public Task<IActionResult> DeleteTask(string taskId) => Apply("task", "delete", taskId);
 }

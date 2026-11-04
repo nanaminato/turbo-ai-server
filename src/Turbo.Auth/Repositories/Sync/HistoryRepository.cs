@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Turbo.Auth.Data.Contexts;
 using Turbo.Auth.Models.Sync.Messages;
 
@@ -26,53 +26,11 @@ public class HistoryRepository: IHistoryRepository
         return history?.ChatHistoryId ?? -1;
     }
 
-    public async Task DeleteHistoryByHistoryId(long historyId)
-    {
-        var history = await _context.ChatHistories!.Where(h => h.ChatHistoryId == historyId).FirstOrDefaultAsync();
-        if (history != null)
-        {
-            _context.ChatHistories!.Remove(history);
-            await _context.SaveChangesAsync();
-        }
-        
-    }
-
-    public async Task AddHistory(ChatHistory history)
-    {
-        await _context.AddAsync(history);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task UpdateHistory(ChatHistory history)
-    {
-        var oldHistory = await _context.ChatHistories!
-            .Where(h => h.UserId == history.UserId && h.DataId == history.DataId)
-            .FirstOrDefaultAsync();
-        if (oldHistory != null)
-        {
-            oldHistory.Title = history.Title;
-            await _context.SaveChangesAsync();
-        }
-    }
-
     public async Task<List<ChatHistory>> GetHistories(int userId,List<long> historyDataIds)
     {
-        var historyIdsInDb = await _context.ChatHistories!
-            .Where(c=>c.UserId==userId)
-            .OrderBy(c=>c.DataId)
-            .Select(c=>c.DataId)
+        return await _context.ChatHistories!.AsNoTracking()
+            .Where(history => history.UserId == userId && !historyDataIds.Contains(history.DataId))
+            .OrderBy(history => history.DataId)
             .ToListAsync();
-        var c = historyIdsInDb.Except(historyDataIds).ToList();
-        var chatHistories = new List<ChatHistory>();
-        foreach (var id in c)
-        {
-            var chatHistory = await _context.ChatHistories!.FirstOrDefaultAsync(ch => ch.DataId == id);
-            if (chatHistory != null)
-            {
-                chatHistories.Add(chatHistory);
-            }
-        }
-
-        return chatHistories;
     }
 }
