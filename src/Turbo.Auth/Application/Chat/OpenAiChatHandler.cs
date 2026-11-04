@@ -1,5 +1,4 @@
-﻿using System.Globalization;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Turbo.Auth.Application.Providers;
 using Turbo.Auth.Application.Routing;
@@ -14,7 +13,7 @@ namespace Turbo.Auth.Application.Chat;
 /// <summary>
 /// OpenAI / OpenAI 兼容厂商的 Chat 路由处理器（基于 tryAGI.OpenAI 4.2.10）。
 /// 直接通过 SDK 调用 Chat Completion 流式端点，
-/// 自动支持 GPT-5 / GPT-5.1 / GPT-5.2 / GPT-5.3+ 系列的 verbosity 与 reasoning_effort 字段。
+/// 可选生成参数全部省略，由提供商使用模型默认值。
 /// </summary>
 public class OpenAiChatHandler : IChatHandler
 {
@@ -39,69 +38,17 @@ public class OpenAiChatHandler : IChatHandler
         var client = new OpenAiClient(apiKey, baseUri: new Uri(baseUrl));
 
         var model = modelKey.Model!;
-        var isReasoningModel = IsReasoningModel(model);
 
         // 把 ChatBody 内的消息转为 tryAGI 的 ChatCompletionRequestMessage 列表。
         var messages = TransferMessages(chatBody.Messages!, chatBody.Vision);
 
-        // Build variant 2。tryAGI 4.2.10 的 CreateChatCompletionRequestVariant2 包含：
-        //   Messages, Model, Stream, Verbosity, ReasoningEffort, MaxCompletionTokens,
-        //   FrequencyPenalty, PresencePenalty 等。
-        // 注意：Variant2 上没有 Temperature / TopP 属性（4.2.10 OpenAPI spec 删除了）；
-        // 对非推理模型，通过 AdditionalProperties 扩展字段塞进去（标记了 [JsonExtensionData]）。
+        // Only supply conversation data; leave optional generation settings unset.
         var variant = new CreateChatCompletionRequestVariant2
         {
             Messages = messages,
             Model = model,
             Stream = true,
         };
-
-        // 单次回复限制 (max_completion_tokens)：
-        //   - HasValue 且为正数 → 透传给 OpenAI（前台「限制」模式）；
-        //   - HasValue=false 或 <=0 → 视作「无限制」，跳过该字段，
-        //     覆盖前台 isMaxTokensUnlimited() 开关以及历史以 0 表示无限制的配置。
-        if (chatBody.MaxCompletionTokens is > 0)
-        {
-            variant.MaxCompletionTokens = chatBody.MaxCompletionTokens;
-        }
-
-        // GPT-5 / GPT-5.x 支持 verbosity。VerbosityEnum 仅 Low/Medium/High。
-        var verbosity = ParseVerbosity(chatBody.Verbosity);
-        if (verbosity.HasValue)
-        {
-            variant.Verbosity = verbosity.Value;
-        }
-
-        // 仅推理模型（o 系列 + GPT-5 系列）允许 reasoning_effort。
-        var reasoning = ParseReasoningEffort(chatBody.ReasoningEffort, isReasoningModel);
-        if (reasoning.HasValue)
-        {
-            variant.ReasoningEffort = reasoning.Value;
-        }
-
-        // 非推理模型可附加传统采样参数；推理模型显式不附加（OpenAI 官方限制）。
-        // 注意：Variant2 上没有 Temperature / TopP 属性，通过 AdditionalProperties 兜底。
-        if (!isReasoningModel)
-        {
-            if (chatBody.Temperature.HasValue && IsFinite(chatBody.Temperature.Value))
-            {
-                variant.AdditionalProperties["temperature"] =
-                    Convert.ToSingle(chatBody.Temperature.Value, CultureInfo.InvariantCulture);
-            }
-            if (chatBody.TopP.HasValue && IsFinite(chatBody.TopP.Value))
-            {
-                variant.AdditionalProperties["top_p"] =
-                    Convert.ToSingle(chatBody.TopP.Value, CultureInfo.InvariantCulture);
-            }
-            if (chatBody.FrequencyPenalty.HasValue && IsFinite(chatBody.FrequencyPenalty.Value))
-            {
-                variant.FrequencyPenalty = Convert.ToSingle(chatBody.FrequencyPenalty.Value, CultureInfo.InvariantCulture);
-            }
-            if (chatBody.PresencePenalty.HasValue && IsFinite(chatBody.PresencePenalty.Value))
-            {
-                variant.PresencePenalty = Convert.ToSingle(chatBody.PresencePenalty.Value, CultureInfo.InvariantCulture);
-            }
-        }
 
         var request = new CreateChatCompletionRequest
         {
@@ -196,7 +143,6 @@ public class OpenAiChatHandler : IChatHandler
                             ImageUrl = new ChatCompletionRequestMessageContentPartImageImageUrl
                             {
                                 Url = url,
-                                Detail = ChatCompletionRequestMessageContentPartImageImageUrlDetail.Auto,
                             },
                             Type = ChatCompletionRequestMessageContentPartImageType.ImageUrl,
                         }));
@@ -256,58 +202,4 @@ public class OpenAiChatHandler : IChatHandler
         return trimmed;
     }
 
-    private static bool IsReasoningModel(string model)
-    {
-        if (string.IsNullOrEmpty(model)) return false;
-        var lower = model.ToLowerInvariant();
-        if (lower.StartsWith("o1") || lower.StartsWith("o3") || lower.StartsWith("o4"))
-        {
-            return true;
-        }
-        if (lower.StartsWith("gpt-5"))
-        {
-            return true;
-        }
-        return false;
-    }
-
-    private static bool IsFinite(double value) =>
-        !double.IsNaN(value) && !double.IsInfinity(value);
-
-    /// <summary>
-    /// 把字符串映射到 tryAGI 的 <see cref="VerbosityEnum"/>。VerbosityEnum 仅含 Low/Medium/High。
-    /// 未知值返回 null（不发送 verbosity 字段）。
-    /// </summary>
-    private static VerbosityEnum? ParseVerbosity(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return null;
-        return raw.Trim().ToLowerInvariant() switch
-        {
-            "low" => VerbosityEnum.Low,
-            "medium" => VerbosityEnum.Medium,
-            "high" => VerbosityEnum.High,
-            // Minimal/Xhigh 在 VerbosityEnum 中不存在，忽略。
-            _ => null,
-        };
-    }
-
-    /// <summary>
-    /// 把字符串映射到 tryAGI 的 <see cref="ReasoningEffortEnum"/>。
-    /// ReasoningEffortEnum 含 None/Minimal/Low/Medium/High/Max/Xhigh。
-    /// </summary>
-    private static ReasoningEffortEnum? ParseReasoningEffort(string? raw, bool isReasoningModel)
-    {
-        if (!isReasoningModel || string.IsNullOrWhiteSpace(raw)) return null;
-        return raw.Trim().ToLowerInvariant() switch
-        {
-            "none" => ReasoningEffortEnum.None,
-            "minimal" => ReasoningEffortEnum.Minimal,
-            "low" => ReasoningEffortEnum.Low,
-            "medium" => ReasoningEffortEnum.Medium,
-            "high" => ReasoningEffortEnum.High,
-            "xhigh" => ReasoningEffortEnum.Xhigh,
-            "max" => ReasoningEffortEnum.Max,
-            _ => null,
-        };
-    }
 }

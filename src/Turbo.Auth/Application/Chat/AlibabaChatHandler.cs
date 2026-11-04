@@ -55,8 +55,6 @@ public class AlibabaChatHandler: IChatHandler
     {
         return new CompletionParameters()
         {
-            TopP = chatBody.TopP.HasValue? (float)chatBody.TopP : null,
-            Temperature = chatBody.Temperature.HasValue?(float)chatBody.Temperature:null,
             ResultFormat = "message",
             IncrementalOutput = true
         };

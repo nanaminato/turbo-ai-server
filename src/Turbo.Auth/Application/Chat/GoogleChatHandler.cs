@@ -37,9 +37,8 @@ public class GoogleChatHandler : IChatHandler
     {
         var model = modelKey.Model!;
 
-        // 对于需要 Gemini 2.5 thinking_budget 或 system_instruction 等
-        // SDK 尚未支持的字段，直接构造 JSON 请求体走 HTTP 通道。
-        var useRawHttp = NeedsRawHttp(chatBody, model);
+        // Gemini 2.5 uses native HTTP to preserve system instructions.
+        var useRawHttp = NeedsRawHttp(model);
 
         if (useRawHttp)
         {
@@ -51,12 +50,8 @@ public class GoogleChatHandler : IChatHandler
         await StreamWithSdkAsync(chatBody, modelKey, response, cancellationToken);
     }
 
-    private static bool NeedsRawHttp(NoModelChatBody chatBody, string model)
+    private static bool NeedsRawHttp(string model)
     {
-        // Gemini 2.5 系列才支持思考预算；只要用户提供了该参数就走原生 HTTP。
-        if (chatBody.ThinkingBudget.HasValue) return true;
-        // 显式传入 verbosity/reasoning_effort 但模型为 Gemini 时，识别为占位用（Gemini 不接受这些字段）。
-        // 这里仅作决策：thinking_budget 唯一触发。
         var lower = model.ToLowerInvariant();
         return lower.StartsWith("gemini-2.5");
     }
@@ -108,12 +103,6 @@ public class GoogleChatHandler : IChatHandler
         if (systemInstruction != null)
         {
             payload["systemInstruction"] = systemInstruction;
-        }
-
-        var generationConfig = BuildGenerationConfig(chatBody, model);
-        if (generationConfig != null)
-        {
-            payload["generationConfig"] = generationConfig;
         }
 
         var http = _httpClientFactory.CreateClient("AiProvider");
@@ -254,46 +243,6 @@ public class GoogleChatHandler : IChatHandler
 
         return (systemInstruction, contents);
     }
-
-    private static JObject BuildGenerationConfig(NoModelChatBody chatBody, string model)
-    {
-        var cfg = new JObject();
-        var hasAny = false;
-
-        if (chatBody.ThinkingBudget.HasValue)
-        {
-            cfg["thinkingConfig"] = new JObject
-            {
-                ["thinkingBudget"] = chatBody.ThinkingBudget.Value
-            };
-            hasAny = true;
-        }
-
-        if (chatBody.Temperature.HasValue)
-        {
-            cfg["temperature"] = ToFiniteNumber(chatBody.Temperature.Value);
-            hasAny = true;
-        }
-        if (chatBody.TopP.HasValue)
-        {
-            cfg["topP"] = ToFiniteNumber(chatBody.TopP.Value);
-            hasAny = true;
-        }
-        // 单次回复限制 (max_completion_tokens)：
-        //   - HasValue 且为正数 → 透传给 Gemini 的 maxOutputTokens（前台「限制」模式）；
-        //   - HasValue=false 或 <=0 → 视作「无限制」，跳过该字段，
-        //     覆盖前台 isMaxTokensUnlimited() 开关以及历史以 0 表示无限制的配置。
-        if (chatBody.MaxCompletionTokens is > 0)
-        {
-            cfg["maxOutputTokens"] = chatBody.MaxCompletionTokens.Value;
-            hasAny = true;
-        }
-
-        return hasAny ? cfg : null!;
-    }
-
-    private static double ToFiniteNumber(double value) =>
-        double.IsNaN(value) || double.IsInfinity(value) ? 0 : value;
 
     private static string NormalizeGeminiRole(string? role)
     {
