@@ -10,7 +10,7 @@ public static class ArchitectureSchemaCheck
         ["RoutingConfiguration"] = ["Id", "Version"],
         ["SyncAccounts"] = ["AccountId", "Version"],
         ["SyncChanges"] = ["AccountId", "Version", "OperationId", "RequestHash", "Kind", "Action", "EntityId", "HistoryId", "Payload"],
-        ["ModelKeyBinds"] = ["ProviderModelValue", "Priority"],
+        ["ModelKeyBinds"] = ["ProviderModelValue", "Priority", "RoutingWeight"],
         ["RegistrationEmailChallenges"] = ["EmailHash", "CodeHash", "ExpiresAt", "NextSendAt", "AttemptsLeft"]
     };
 
@@ -55,7 +55,9 @@ public static class ArchitectureSchemaCheck
         if (missing.Count != 0)
         {
             var scripts = new List<string>();
-            if (missing.Any(item => !item.StartsWith("RegistrationEmailChallenges", StringComparison.Ordinal)))
+            if (missing.Contains("ModelKeyBinds.RoutingWeight"))
+                scripts.Add("src/Turbo.Auth/Resources/merge/routing-weight-upgrade.sql");
+            if (missing.Any(item => item != "ModelKeyBinds.RoutingWeight" && !item.StartsWith("RegistrationEmailChallenges", StringComparison.Ordinal)))
                 scripts.Add("src/Turbo.Auth/Resources/merge/architecture-upgrade.sql");
             if (missing.Any(item => item.StartsWith("RegistrationEmailChallenges", StringComparison.Ordinal)))
                 scripts.Add("src/Turbo.Auth/Resources/merge/registration-email-verification.sql");

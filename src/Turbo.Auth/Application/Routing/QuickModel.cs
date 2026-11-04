@@ -81,7 +81,7 @@ public class QuickModel
             throw new KeyNotFoundException("当前模型没有健康的可用路由。");
         }
 
-        var selected = WeightRandom(availableWeights);
+        var selected = SelectWeightedRoute(availableWeights, Random.Shared.NextDouble());
         return new ModelKey
         {
             LogicalModel = model,
@@ -97,7 +97,7 @@ public class QuickModel
         foreach (var (model, weights) in quickModel.Quick)
         {
             var copiedWeights = weights
-                .Where(weight => weight.SupplierKey != null && weight.Weight > 0)
+                .Where(weight => weight.SupplierKey != null && double.IsFinite(weight.Weight) && weight.Weight > 0)
                 .Select(weight => new WeightKey
                 {
                     RouteId = weight.RouteId,
@@ -118,27 +118,32 @@ public class QuickModel
         Volatile.Write(ref _snapshot, new RouteSnapshot(routes, apiMartKeys));
     }
 
-    private static WeightKey WeightRandom(IReadOnlyList<WeightKey> modelWeights)
+    public static WeightKey SelectWeightedRoute(IReadOnlyList<WeightKey> modelWeights, double sample)
     {
+        if (!double.IsFinite(sample) || sample < 0 || sample >= 1) throw new ArgumentOutOfRangeException(nameof(sample));
+        modelWeights = modelWeights.Where(item => double.IsFinite(item.Weight) && item.Weight > 0).ToArray();
+        if (modelWeights.Count == 0) throw new InvalidOperationException("No positive finite route weights.");
         var preferredPriority = modelWeights.Min(item => item.Priority);
         var preferredRoutes = modelWeights
             .Where(item => item.Priority == preferredPriority)
             .ToArray();
-        var totalWeight = preferredRoutes.Sum(item => item.Weight);
+        // Scale before summing: finite individual weights may still overflow their sum.
+        var scale = preferredRoutes.Max(item => item.Weight);
+        var totalWeight = preferredRoutes.Sum(item => item.Weight / scale);
         if (totalWeight <= 0)
         {
             throw new InvalidOperationException("模型没有可用的路由权重。");
         }
 
-        var randomWeight = Random.Shared.NextDouble() * totalWeight;
+        var randomWeight = sample * totalWeight;
         foreach (var item in preferredRoutes)
         {
-            if (randomWeight < item.Weight)
+            if (randomWeight < item.Weight / scale)
             {
                 return item;
             }
 
-            randomWeight -= item.Weight;
+            randomWeight -= item.Weight / scale;
         }
 
         return preferredRoutes[^1];

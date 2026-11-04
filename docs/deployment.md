@@ -145,3 +145,7 @@ SELECT ChatHistoryId, DataId, COUNT(*) FROM ChatMessages GROUP BY ChatHistoryId,
 ## 注册邮箱验证
 
 公开注册新增必填 emailCode，复用现有 PasswordReset SMTP 配置；Registration.Enabled 默认为 true。已有数据库需要先执行一次 `registration-email-verification.sql`，再配套发布前后端。配置、响应和回归证据见 [注册邮箱验证](registration-email-verification.md)。
+
+### 独立路由权重升级（2026-11-05）
+
+已完成架构升级的库还需执行一次 `src/Turbo.Auth/Resources/merge/routing-weight-upgrade.sql`。刷新旧快捷添加示例使用可重复运行的 `model-catalog-refresh.sql`。不要在已有库重跑 init.sql；具体升级顺序、兼容行为见 [模型目录与路由权重](model-catalog-and-routing.md)。

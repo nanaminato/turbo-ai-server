@@ -64,7 +64,7 @@ data: {"type":"completed","text":null,"code":null}
 | 获取供应商类型编号 | `GET /api/key/types` |
 | 刷新内存密钥池 | `POST /api/sync/loadKeys` |
 
-创建密钥时填写 `BaseUrl`、`ApiKey`、`RequestIdentifier` 与启用状态；创建模型时填写逻辑模型名、聊天/视觉能力与启用状态，并通过 `ModelKeyBinds` 将它们关联。每条关联可设置 `ProviderModelValue`（该供应商的实际模型名）、`Priority`（数字越小越优先）与 `Fee`（同一优先级内的权重依据）。不要在浏览器日志、源码或请求记录中保存 API 密钥。
+创建密钥时填写 `BaseUrl`、`ApiKey`、`RequestIdentifier` 与启用状态；创建模型时填写逻辑模型名、聊天/视觉能力与启用状态，并通过 `ModelKeyBinds` 将它们关联。每条关联可设置 `ProviderModelValue`（该供应商的实际模型名）、`Priority`（数字越小越优先）、`RoutingWeight`（独立相对权重；0 排除，null 兼容旧行为）与 `Fee`（相对成本系数，仅未配置权重时使用其倒数）。不要在浏览器日志、源码或请求记录中保存 API 密钥。
 
 例如，客户端统一请求 `fast-chat`，但可将该逻辑模型配置为优先调用 OpenAI 的 `gpt-4.1-mini`，失败时再调用另一个供应商的 `gemini-2.5-flash`：
 
@@ -137,3 +137,5 @@ data: {"type":"completed","text":null,"code":null}
 ## 注册邮箱验证码
 
 先调用 `POST /api/auth/register/email-code`，只提交 email；收到邮件后在 `POST /api/auth/register` 中提交 emailCode 与原有注册字段。验证码不通过时不会创建账户。响应、冷却与部署要求见 [注册邮箱验证](registration-email-verification.md)。
+
+路由配置与升级示例见 [模型目录与路由权重](model-catalog-and-routing.md)。

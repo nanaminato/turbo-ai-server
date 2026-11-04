@@ -41,11 +41,11 @@ docs/                    架构、接口、部署和开发文档
 ## 聊天请求路径
 
 1. 客户端以 Bearer JWT 调用 `POST /api/ai/chat`，并指定已配置的 `model`。
-2. `QuickModel` 从不可变的内存路由快照中，先按 `Priority` 选择优先级最高的健康路由，再按费用权重选择 `ModelKey`。
+2. `QuickModel` 从不可变的内存路由快照中，先按 `Priority` 选择优先级最高的健康路由，再按独立 RoutingWeight（未配置时兼容费用倒数）选择 `ModelKey`。
 3. `PlayMixModelBacker` 解析实际模型标识；`ChatHandlerObtain` 从 DI 注册表按供应商类型选择适配器。
 4. `ChatService` 协调路由与故障切换；适配器返回 `IAsyncEnumerable<string>`，Controller 统一输出 SSE 或旧客户端纯文本。
 
-逻辑模型、供应商密钥和路由配置存放在 MySQL。路由包含 `ProviderModelValue`（上游模型名）、`Priority` 和 `Fee`，因此同一个逻辑模型可映射到不同供应商的不同上游模型。数据库触发器为配置变更递增共享版本，各实例默认每 5 秒自动刷新。`POST /api/sync/loadKeys` 可立即检查当前实例；无需逐台手动刷新。
+逻辑模型、供应商密钥和路由配置存放在 MySQL。路由包含 `ProviderModelValue`（上游模型名）、`Priority`、`RoutingWeight` 和 `Fee`，因此同一个逻辑模型可映射到不同供应商的不同上游模型。数据库触发器为配置变更递增共享版本，各实例默认每 5 秒自动刷新。`POST /api/sync/loadKeys` 可立即检查当前实例；无需逐台手动刷新。
 
 在请求尚未写出响应前，路由失败会被记录，并尝试同一逻辑模型的下一条健康路由。连续失败达到 `AiRouting:FailureThreshold` 后，该路由会熔断 `AiRouting:BreakDurationSeconds`；流式响应已经开始后不会切换路由，以免拼接两个供应商的输出。
 
@@ -71,3 +71,5 @@ docs/                    架构、接口、部署和开发文档
 实施明细、协议兼容、配置失效与验证限制见 [架构审查与实施记录](architecture-review.md)。
 
 Controller 请求与响应从 EF / SDK 模型分离，媒体调用由 MediaService 处理，实施范围与兼容性见 [Controller 契约与官方 SDK](api-contracts-and-sdks.md)。
+
+2026-11-05 的模型目录、权重兼容规则与绑定身份更新见 [模型示例与路由权重](model-catalog-and-routing.md)。

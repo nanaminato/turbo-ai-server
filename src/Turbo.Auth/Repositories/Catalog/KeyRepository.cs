@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Turbo.Auth.Data.Contexts;
 using Turbo.Auth.Exceptions;
 using Turbo.Auth.Models.Suppliers;
@@ -85,16 +85,27 @@ public class KeyRepository: IKeyRepository
             innerKey.RequestIdentifier = key.RequestIdentifier;
             innerKey.Enable = key.Enable;
             var existingFees = await _keyContext.ModelKeyBinds!.Where(f => f.SupplierKeyId == key.SupplierKeyId).ToListAsync();
-            _keyContext.ModelKeyBinds!.RemoveRange(existingFees);
-
-            if (key.ModelKeyBinds != null && key.ModelKeyBinds.Count != 0)
+            var incoming = key.ModelKeyBinds ?? [];
+            if (incoming.GroupBy(binding => binding.ModelId).Any(group => group.Count() > 1))
+                throw new ArgumentException("Duplicate model bindings.");
+            var remaining = existingFees.ToList();
+            foreach (var binding in incoming)
             {
-                foreach (var modelKeyBind in key.ModelKeyBinds)
+                var existing = remaining.FirstOrDefault(item => item.ModelId == binding.ModelId);
+                if (existing is null)
                 {
-                    modelKeyBind.SupplierKeyId = innerKey.SupplierKeyId; // Set the SupplierKeyId for each fee
+                    binding.SupplierKeyId = innerKey.SupplierKeyId;
+                    _keyContext.ModelKeyBinds!.Add(binding);
+                    continue;
                 }
-                _keyContext.ModelKeyBinds.AddRange(key.ModelKeyBinds);
+                remaining.Remove(existing);
+                existing.Enable = binding.Enable;
+                existing.Fee = binding.Fee;
+                existing.RoutingWeight = binding.RoutingWeight;
+                existing.Priority = binding.Priority;
+                existing.ProviderModelValue = binding.ProviderModelValue;
             }
+            _keyContext.ModelKeyBinds!.RemoveRange(remaining);
 
             await _keyContext.SaveChangesAsync();
         }

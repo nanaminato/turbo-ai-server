@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace Turbo.Auth.Models.Suppliers;
 
@@ -42,6 +42,10 @@ public class ModelKeyBind
         get;
         set;
     }
+
+    // Null preserves legacy inverse-fee selection. Explicit zero excludes this route.
+    [Range(0d, 1000000d)]
+    public double? RoutingWeight { get; set; }
 
     [MaxLength(200)]
     public string ProviderModelValue

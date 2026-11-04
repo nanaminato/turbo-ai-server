@@ -43,7 +43,7 @@ internal sealed class MySqlTestDatabase : IAsyncDisposable
                 INSERT INTO GenerateTasks(TaskId,TaskType,AccountId,DateTime,Images,Videos)
                   VALUES ('legacy-task','image',1,'2026-11-04 00:00:00',JSON_ARRAY('https://example.invalid/image'),JSON_ARRAY());
                 """);
-            if (legacy && upgrade) { await fixture.Execute(Resource("ArchitectureUpgrade.sql")); await fixture.Execute(Resource("RegistrationEmail.sql")); }
+            if (legacy && upgrade) { await fixture.Execute(Resource("ArchitectureUpgrade.sql")); await fixture.Execute(Resource("RegistrationEmail.sql")); await fixture.Execute(Resource("RoutingWeight.sql")); }
             return fixture;
         }
         catch { await fixture.DisposeAsync(); throw; }

@@ -1,4 +1,4 @@
-﻿# Accounts
+# Accounts
 create table __efmigrationshistory
 (
     MigrationId    varchar(150) not null
@@ -187,6 +187,7 @@ create table ModelKeyBinds
     SupplierKeyId  int        not null,
     ModelId        int        not null,
     Fee            double     not null,
+    RoutingWeight  double     null,
     ProviderModelValue varchar(200) not null,
     Priority       int        not null default 0,
     constraint FK_ModelKeyBinds_Models_ModelId
