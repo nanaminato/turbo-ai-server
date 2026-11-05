@@ -42,7 +42,7 @@ public class ChatController : Controller
                 await WriteProblem(400, ApiMessages.Get("model_required"));
                 return;
             }
-            await foreach (var chunk in _chat.Stream(chatBody.ToApplication(), HttpContext.RequestAborted))
+            await foreach (var chunk in _chat.Stream(chatBody.ToApplication(FeatureIdentity.AccountId(User)), HttpContext.RequestAborted))
             {
                 started = true;
                 if (framed) await ChatStreamWriter.Write(Response, "delta", HttpContext.RequestAborted, text: chunk);

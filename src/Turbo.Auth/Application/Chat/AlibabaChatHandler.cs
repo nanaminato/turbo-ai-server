@@ -4,11 +4,11 @@ using Turbo.Auth.Application.Routing;
 namespace Turbo.Auth.Application.Chat;
 
 // Model Studio's officially documented OpenAI-compatible chat protocol shares the OpenAI SDK adapter.
-public sealed class AlibabaChatHandler(OpenAiClientFactory clients) : IChatHandler
+public sealed class AlibabaChatHandler(OpenAiClientFactory clients, ILogger<OpenAiChatHandler>? logger = null) : IChatHandler
 {
     public HandlerType ProviderType => HandlerType.Alibaba;
     public IAsyncEnumerable<string> Stream(ChatRequest request, ModelKey route, CancellationToken token) =>
-        new OpenAiChatHandler(clients).StreamAt(request, route, Endpoint(route.SupplierKey?.BaseUrl), token);
+        new OpenAiChatHandler(clients, logger).StreamAt(request, route, Endpoint(route.SupplierKey?.BaseUrl), token);
     internal static string Endpoint(string? configured)
     {
         if (string.IsNullOrWhiteSpace(configured)) return "https://dashscope.aliyuncs.com/compatible-mode/v1";

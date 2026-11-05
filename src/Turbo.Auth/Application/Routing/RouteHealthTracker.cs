@@ -5,6 +5,8 @@ namespace Turbo.Auth.Application.Routing;
 
 public sealed class AiRoutingOptions
 {
+    public bool AffinityEnabled { get; init; } = true;
+    public int AffinityMinutes { get; init; } = 30;
     public int RefreshIntervalSeconds { get; init; } = 5;
     public int MaxStaleSeconds { get; init; } = 30;
     public int FailureThreshold { get; init; } = 3;

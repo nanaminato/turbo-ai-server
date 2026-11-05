@@ -3,6 +3,8 @@ namespace Turbo.Auth.Application.Chat;
 // Application input is independent of HTTP binding, JSON libraries and provider SDKs.
 public sealed class ChatRequest
 {
+    public int? AccountId { get; init; }
+    public string? ConversationId { get; init; }
     public Message[] Messages { get; init; } = [];
     public string? Model { get; init; }
     public bool Stream { get; init; }

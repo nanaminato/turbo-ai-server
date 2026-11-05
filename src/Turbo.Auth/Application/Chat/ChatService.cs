@@ -10,19 +10,26 @@ public interface IChatService
 }
 
 public sealed class ChatService(IChatHandlerObtain handlers, QuickModel routes, IRouteHealthTracker health,
-    PlayMixModelBacker backer, ILogger<ChatService> logger) : IChatService
+    PlayMixModelBacker backer, ILogger<ChatService> logger, IChatRouteAffinityStore? affinity = null) : IChatService
 {
     public async IAsyncEnumerable<string> Stream(ChatRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        double? firstTokenMilliseconds = null;
         var failed = new HashSet<int>();
+        var hasAffinity = affinity is not null && request.AccountId is > 0 &&
+            !string.IsNullOrWhiteSpace(request.ConversationId) && request.ConversationId.Length <= 128;
+        var binding = hasAffinity ? await affinity!.Read(request.AccountId!.Value,
+            request.ConversationId!, request.Model!, cancellationToken) : null;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ModelKey route;
-            try { route = routes.GetModelAndKey(request.Model!, failed); }
+            try { route = routes.GetModelAndKey(request.Model!, failed, binding); }
             catch (KeyNotFoundException exception) when (failed.Count > 0)
             { throw new InvalidOperationException("All candidate AI routes failed.", exception); }
+            var identity = RouteAffinity.From(route);
             route.Model = backer.Backer(route.Model!);
             await using var stream = StreamRoute(request, route, cancellationToken).GetAsyncEnumerator(cancellationToken);
             var emitted = false;
@@ -44,11 +51,17 @@ public sealed class ChatService(IChatHandlerObtain handlers, QuickModel routes, 
                 }
                 if (!hasNext) break;
                 if (string.IsNullOrEmpty(stream.Current)) continue;
+                firstTokenMilliseconds ??= timer.Elapsed.TotalMilliseconds;
                 emitted = true;
                 yield return stream.Current;
             }
             if (retry) continue;
             health.RecordSuccess(route.RouteId);
+            if (hasAffinity) await affinity!.Write(request.AccountId!.Value, request.ConversationId!,
+                request.Model!, identity, cancellationToken);
+            logger.LogInformation("AI chat routing completed. RouteId: {RouteId}; LogicalModel: {LogicalModel}; AffinityReused: {AffinityReused}; FailoverCount: {FailoverCount}; FirstTokenMilliseconds: {FirstTokenMilliseconds}; DurationMilliseconds: {DurationMilliseconds}",
+                route.RouteId, request.Model, binding == identity, failed.Count,
+                firstTokenMilliseconds, timer.Elapsed.TotalMilliseconds);
             yield break;
         }
     }

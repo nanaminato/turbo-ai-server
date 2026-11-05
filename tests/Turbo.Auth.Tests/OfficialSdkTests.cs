@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
 using Turbo.Auth.Application.Chat;
 using Turbo.Auth.Application.Media;
@@ -12,6 +13,38 @@ namespace Turbo.Auth.Tests;
 
 public class OfficialSdkTests
 {
+    [TestCase(true, false)]
+    [TestCase(true, true)]
+    [TestCase(false, false)]
+    public async Task Openai_usage_is_logged_without_content_or_invented_cache_write_counts(bool includeUsage, bool includeWriteCount)
+    {
+        var usage = includeUsage
+            ? "data: {\"id\":\"test\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"test\",\"choices\":[],\"usage\":{\"prompt_tokens\":1200,\"completion_tokens\":20,\"total_tokens\":1220,\"prompt_tokens_details\":{\"cached_tokens\":1024}}}\n\n"
+            : "";
+        if (includeWriteCount) usage = usage.Replace("\"cached_tokens\":1024", "\"cached_tokens\":1024,\"cache_write_tokens\":176");
+        var transport = new Transport(HandlerType.Openai) { Reply =
+            "data: {\"id\":\"test\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"test\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"private answer\"},\"finish_reason\":\"stop\"}]}\n\n" + usage + "data: [DONE]\n\n" };
+        var logger = new UsageLogger();
+        var handler = new OpenAiChatHandler(new OpenAiClientFactory(new Factory(transport)), logger);
+        var chunks = new List<string>();
+        await foreach (var chunk in handler.Stream(new ChatRequest { Messages = [new Message { Content = "private question" }] }, Route("test"), default)) chunks.Add(chunk);
+        Assert.That(string.Concat(chunks), Is.EqualTo("private answer"));
+        Assert.That(JObject.Parse(transport.Body!)["stream_options"]?["include_usage"]?.Value<bool>(), Is.True);
+        Assert.That(logger.Events.Count, Is.EqualTo(includeUsage ? 1 : 0));
+        if (includeUsage)
+        {
+            var entry = logger.Events.Single();
+            Assert.Multiple(() =>
+            {
+                Assert.That(entry["InputTokens"], Is.EqualTo(1200));
+                Assert.That(entry["OutputTokens"], Is.EqualTo(20));
+                Assert.That(entry["CachedInputTokens"], Is.EqualTo(1024));
+                Assert.That(entry["CacheWriteTokens"], Is.EqualTo(includeWriteCount ? 176L : (long?)null));
+                Assert.That(string.Join(" ", entry.Values), Does.Not.Contain("private question").And.Not.Contain("private answer").And.Not.Contain("test-key"));
+            });
+        }
+    }
+
     [TestCase(HandlerType.Openai)]
     [TestCase(HandlerType.Alibaba)]
     [TestCase(HandlerType.Google)]
@@ -151,6 +184,14 @@ public class OfficialSdkTests
         return new MediaService(routes, new OpenAiClientFactory(new Factory(transport)));
     }
     private static ModelKey Route(string alias) => new() { Model = alias, SupplierKey = new SupplierKey { ApiKey = "test-key", BaseUrl = "https://provider.invalid" } };
+    private sealed class UsageLogger : ILogger<OpenAiChatHandler>
+    {
+        public List<Dictionary<string, object?>> Events { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel level) => true;
+        public void Log<TState>(LogLevel level, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Events.Add(((IEnumerable<KeyValuePair<string, object?>>)state!).ToDictionary(pair => pair.Key, pair => pair.Value));
+    }
     private sealed class Factory(Transport transport) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) { Assert.That(name, Is.EqualTo("AiProvider")); return new HttpClient(transport, disposeHandler: false); }

@@ -73,7 +73,7 @@ public class QuickModel
         }).ToList();
     }
 
-    public ModelKey GetModelAndKey(string model, ISet<int>? excludedRouteIds = null)
+    public ModelKey GetModelAndKey(string model, ISet<int>? excludedRouteIds = null, RouteAffinity? affinity = null)
     {
         var snapshot = Volatile.Read(ref _snapshot);
         if (!snapshot.Routes.TryGetValue(model, out var weights) || weights.Count == 0)
@@ -90,7 +90,14 @@ public class QuickModel
             throw new KeyNotFoundException("当前模型没有健康的可用路由。");
         }
 
-        var selected = SelectWeightedRoute(availableWeights, Random.Shared.NextDouble());
+        // Existing sessions stay on a successful fallback even after the primary recovers.
+        // Key rotation, endpoint/provider/model changes invalidate the stored identity.
+        var selected = affinity is null ? null : availableWeights.FirstOrDefault(weight =>
+            weight.RouteId == affinity.RouteId && RouteAffinity.From(new ModelKey
+            {
+                RouteId = weight.RouteId, Model = weight.ProviderModelValue, SupplierKey = weight.SupplierKey
+            }).Signature == affinity.Signature);
+        selected ??= SelectWeightedRoute(availableWeights, Random.Shared.NextDouble());
         return new ModelKey
         {
             LogicalModel = model,

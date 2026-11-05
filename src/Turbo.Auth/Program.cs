@@ -189,6 +189,7 @@ builder.Services.AddScoped<IKeyPoolRepository, StableKeyPoolRepository>();
 builder.Services.Configure<AiRoutingOptions>(builder.Configuration.GetSection("AiRouting"));
 builder.Services.AddSingleton<IRouteHealthTracker, RouteHealthTracker>();
 builder.Services.AddSingleton<QuickModel>();
+builder.Services.AddSingleton<IChatRouteAffinityStore, DistributedChatRouteAffinityStore>();
 builder.Services.AddSingleton<PlayMixModelBacker>();
 builder.Services.AddScoped<IModelKeyBuilder, ModelKeyBuilder>();
 builder.Services.AddScoped<IChatHandler, OpenAiChatHandler>();
