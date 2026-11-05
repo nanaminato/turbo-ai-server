@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Turbo.Auth.Application.Media;
 using MySqlConnector;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -7,7 +8,7 @@ using Turbo.Auth.Data.Contexts;
 namespace Turbo.Auth.Security.FeatureAccess;
 
 // All replicas share the same MySQL rows. No process-local fallback is allowed.
-public sealed class FeatureAccessStore(IConfiguration configuration)
+public sealed class FeatureAccessStore(IConfiguration configuration) : IImageTaskReceipts
 {
     private async Task<MySqlConnection> Open(CancellationToken token)
     {
@@ -123,12 +124,32 @@ public sealed class FeatureAccessStore(IConfiguration configuration)
         await transaction.CommitAsync(token);
         return new(id, 0);
     }
-    public async Task RecordTask(int accountId, string taskId, CancellationToken token)
+    public async Task RecordTask(int accountId, string taskId, CancellationToken token, int? supplierKeyId = null)
+    {
+        await using var connection = await Open(token);
+        await using var transaction = await connection.BeginTransactionAsync(token);
+        await using (var command = Command(connection, transaction,
+            "INSERT INTO FeatureAccessTasks (TaskId,AccountId,SupplierKeyId) VALUES (@id,@account,@key) ON DUPLICATE KEY UPDATE TaskId=TaskId",
+            ("@id", taskId), ("@account",accountId), ("@key",supplierKeyId)))
+            await command.ExecuteNonQueryAsync(token);
+        await using (var check = Command(connection, transaction,
+            "SELECT AccountId,SupplierKeyId FROM FeatureAccessTasks WHERE TaskId=@id FOR UPDATE", ("@id",taskId)))
+        await using (var reader = await check.ExecuteReaderAsync(token))
+        {
+            if (!await reader.ReadAsync(token) || reader.GetInt32(0) != accountId ||
+                (reader.IsDBNull(1) ? (int?)null : reader.GetInt32(1)) != supplierKeyId)
+                throw new InvalidOperationException("The task receipt belongs to a different owner or route.");
+        }
+        await transaction.CommitAsync(token);
+    }
+    public async Task<int?> GetTaskSupplierKeyId(int accountId, string taskId, CancellationToken token)
     {
         await using var connection = await Open(token);
         await using var command = Command(connection, null,
-            "INSERT INTO FeatureAccessTasks (TaskId,AccountId) VALUES (@id,@account)", ("@id", taskId), ("@account",accountId));
-        await command.ExecuteNonQueryAsync(token);
+            "SELECT SupplierKeyId FROM FeatureAccessTasks WHERE TaskId=@id AND AccountId=@account",
+            ("@id",taskId), ("@account",accountId));
+        var value = await command.ExecuteScalarAsync(token);
+        return value is null or DBNull ? null : Convert.ToInt32(value);
     }
     public async Task<bool> OwnsTask(int accountId, string taskId, CancellationToken token)
     {

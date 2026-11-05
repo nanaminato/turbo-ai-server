@@ -43,7 +43,7 @@ internal sealed class MySqlTestDatabase : IAsyncDisposable
                 INSERT INTO GenerateTasks(TaskId,TaskType,AccountId,DateTime,Images,Videos)
                   VALUES ('legacy-task','image',1,'2026-11-04 00:00:00',JSON_ARRAY('https://example.invalid/image'),JSON_ARRAY());
                 """);
-            if (legacy && upgrade) { await fixture.Execute(Resource("ArchitectureUpgrade.sql")); await fixture.Execute(Resource("RegistrationEmail.sql")); await fixture.Execute(Resource("RoutingWeight.sql")); await fixture.Execute(Resource("RoleSystem.sql")); await fixture.Execute(Resource("PerformanceIndexes.sql")); }
+            if (legacy && upgrade) { await fixture.Execute(Resource("ArchitectureUpgrade.sql")); await fixture.Execute(Resource("RegistrationEmail.sql")); await fixture.Execute(Resource("RoutingWeight.sql")); await fixture.Execute(Resource("RoleSystem.sql")); await fixture.Execute(Resource("FeatureAccess.sql")); if(await fixture.Scalar<long>("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='FeatureAccessTasks' AND COLUMN_NAME='SupplierKeyId'")==0)await fixture.Execute(Resource("ApimartTaskRoute.sql")); await fixture.Execute(Resource("PerformanceIndexes.sql")); }
             return fixture;
         }
         catch { await fixture.DisposeAsync(); throw; }

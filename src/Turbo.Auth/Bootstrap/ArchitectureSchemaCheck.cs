@@ -8,6 +8,7 @@ public static class ArchitectureSchemaCheck
     private static readonly Dictionary<string, string[]> RequiredColumns = new(StringComparer.Ordinal)
     {
         ["Roles"] = ["Code", "Description"],
+        ["FeatureAccessTasks"] = ["TaskId", "AccountId", "SupplierKeyId"],
         ["RoutingConfiguration"] = ["Id", "Version"],
         ["SyncAccounts"] = ["AccountId", "Version"],
         ["SyncChanges"] = ["AccountId", "Version", "OperationId", "RequestHash", "Kind", "Action", "EntityId", "HistoryId", "Payload"],
@@ -56,11 +57,15 @@ public static class ArchitectureSchemaCheck
         if (missing.Count != 0)
         {
             var scripts = new List<string>();
+            if (missing.Contains("FeatureAccessTasks"))
+                scripts.Add("src/Turbo.Auth/Resources/merge/feature-access.sql");
+            else if (missing.Any(item => item.StartsWith("FeatureAccessTasks.", StringComparison.Ordinal)))
+                scripts.Add("src/Turbo.Auth/Resources/merge/apimart-task-route-upgrade.sql");
             if (missing.Any(item => item.StartsWith("Roles.") || item.StartsWith("Roles unique") || item.StartsWith("AccountRoles unique")))
                 scripts.Add("src/Turbo.Auth/Resources/merge/role-system-upgrade.sql");
             if (missing.Contains("ModelKeyBinds.RoutingWeight"))
                 scripts.Add("src/Turbo.Auth/Resources/merge/routing-weight-upgrade.sql");
-            if (missing.Any(item => item != "ModelKeyBinds.RoutingWeight" && !item.StartsWith("Roles") && !item.StartsWith("AccountRoles") && !item.StartsWith("RegistrationEmailChallenges", StringComparison.Ordinal)))
+            if (missing.Any(item => item != "ModelKeyBinds.RoutingWeight" && !item.StartsWith("Roles") && !item.StartsWith("AccountRoles") && !item.StartsWith("FeatureAccessTasks", StringComparison.Ordinal) && !item.StartsWith("RegistrationEmailChallenges", StringComparison.Ordinal)))
                 scripts.Add("src/Turbo.Auth/Resources/merge/architecture-upgrade.sql");
             if (missing.Any(item => item.StartsWith("RegistrationEmailChallenges", StringComparison.Ordinal)))
                 scripts.Add("src/Turbo.Auth/Resources/merge/registration-email-verification.sql");

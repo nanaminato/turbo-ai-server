@@ -24,6 +24,8 @@ public class ArchitectureDatabaseTests
         await database.Execute(MySqlTestDatabase.Resource("ArchitectureUpgrade.sql"));
         await database.Execute(MySqlTestDatabase.Resource("RoutingWeight.sql"));
         await database.Execute(MySqlTestDatabase.Resource("RoleSystem.sql"));
+        await database.Execute(MySqlTestDatabase.Resource("FeatureAccess.sql"));
+        await database.Execute(MySqlTestDatabase.Resource("ApimartTaskRoute.sql"));
         await database.Execute(MySqlTestDatabase.Resource("PerformanceIndexes.sql"));
         await Turbo.Auth.Bootstrap.ArchitectureSchemaCheck.Validate(connection.ConnectionString);
     }

@@ -38,10 +38,19 @@ public class QuickModel
     public bool IsModelAvailable(string? model) =>
         !string.IsNullOrWhiteSpace(model) && Volatile.Read(ref _snapshot).Routes.ContainsKey(model);
 
-    public SupplierKey? GetApiMartKey()
+    public SupplierKey? GetApiMartKey(int? supplierKeyId = null, string? operationKey = null)
     {
         var keys = Volatile.Read(ref _snapshot).ApiMartKeys;
-        return keys.Count == 0 ? null : keys[Random.Shared.Next(keys.Count)];
+        var enabled = keys.Where(key => key.Enable && key.RequestIdentifier == (int)Turbo.Auth.Application.Providers.HandlerType.ApiMart).ToArray();
+        if (supplierKeyId is not null) return enabled.FirstOrDefault(key => key.SupplierKeyId == supplierKeyId);
+        if (enabled.Length == 0) return null;
+        if (operationKey is not null)
+        {
+            var sorted = enabled.OrderBy(key => key.SupplierKeyId).ToArray();
+            var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(operationKey));
+            return sorted[System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(hash) % (uint)sorted.Length];
+        }
+        return enabled[Random.Shared.Next(enabled.Length)];
     }
 
     public IReadOnlyDictionary<string, IReadOnlyList<WeightKey>> GetQuick() =>

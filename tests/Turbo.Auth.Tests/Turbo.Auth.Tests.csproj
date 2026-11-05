@@ -13,6 +13,8 @@
     <ItemGroup>
       <EmbeddedResource Include="../../src/Turbo.Auth/Resources/account/create-admin.sql" LogicalName="CreateAdmin.sql" />
       <EmbeddedResource Include="../../src/Turbo.Auth/Resources/merge/performance-index-upgrade.sql" LogicalName="PerformanceIndexes.sql" />
+      <EmbeddedResource Include="../../src/Turbo.Auth/Resources/merge/feature-access.sql" LogicalName="FeatureAccess.sql" />
+      <EmbeddedResource Include="../../src/Turbo.Auth/Resources/merge/apimart-task-route-upgrade.sql" LogicalName="ApimartTaskRoute.sql" />
       <EmbeddedResource Include="../../src/Turbo.Auth/Resources/merge/role-system-upgrade.sql" LogicalName="RoleSystem.sql" />
       <EmbeddedResource Include="Fixtures/pre-architecture-e01436d.sql" LogicalName="PreArchitecture.sql" />
       <EmbeddedResource Include="../../src/Turbo.Auth/Resources/merge/registration-email-verification.sql" LogicalName="RegistrationEmail.sql" />

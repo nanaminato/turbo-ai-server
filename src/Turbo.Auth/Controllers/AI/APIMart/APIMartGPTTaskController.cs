@@ -1,54 +1,24 @@
-using Turbo.Auth.Security.FeatureAccess;
-using Turbo.Auth.Localization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Distributed;
-using Newtonsoft.Json;
-using Turbo.Auth.Contracts.Media;
+using Turbo.Auth.Application.Media;
 using Turbo.Auth.Contracts.Common;
-using Turbo.Auth.Application.Routing;
-
+using Turbo.Auth.Contracts.Media;
+using Turbo.Auth.Security.FeatureAccess;
 namespace Turbo.Auth.Controllers.AI.APIMart;
-
-[FeatureAccess("image-task")]
-[ApiController]
-[Route("api/apimart")]
-public class APIMartGPTTaskController : Controller
+[FeatureAccess("image-task"),ApiController,Authorize,Route("api/apimart")]
+public class APIMartGPTTaskController(APIMartImageService images):ControllerBase
 {
-    private readonly FeatureAccessStore _access;
-    private readonly IHttpClientFactory _http;
-    private QuickModel _quickModel;
-
-    public APIMartGPTTaskController(
-        QuickModel quickModel, FeatureAccessStore access, IHttpClientFactory http
-        )
-    {
-        _quickModel = quickModel;
-        _access = access;
-        _http = http;
-    }
-    [Authorize]
     [HttpGet("getTask/{task_id}")]
-    public async Task<ActionResult<TaskResponse>> GPTImage2OfficialGenerate(string task_id, string language)
+    public async Task<ActionResult<TaskResponse>> GPTImage2OfficialGenerate(string task_id,string? language,CancellationToken token=default)
     {
-        if (task_id.Length > 255 || !await _access.OwnsTask(FeatureIdentity.AccountId(User)!.Value, task_id, HttpContext.RequestAborted))
-            return NotFound();
-        var apiMartKey = _quickModel.GetApiMartKey();
-        if (apiMartKey == null)
+        var account=FeatureIdentity.AccountId(User);if(account is null)return Unauthorized();
+        try
         {
-            return BadRequest(ApiMessages.Get("no_api_key"));
+            var result=await images.GetTask(account.Value,task_id,language,token);
+            return result is null?NotFound():Ok(result);
         }
-        var url = apiMartKey!.BaseUrl + $"/v1/tasks/{Uri.EscapeDataString(task_id)}?language={Uri.EscapeDataString(language ?? "en")}";
-        using var client = _http.CreateClient("AiProvider");
-        client.DefaultRequestHeaders.Add("Authorization", "Bearer " + apiMartKey.ApiKey);
-
-        using var response = await client.GetAsync(url, HttpContext.RequestAborted);
-        var result = await response.Content.ReadAsStringAsync(HttpContext.RequestAborted);
-        if (!response.IsSuccessStatusCode) return StatusCode(502, new CodeResponse("ai_unavailable"));
-        var task = JsonConvert.DeserializeObject<TaskResponse>(result);
-        return Ok(task);
+        catch(APIMartProviderException error){return StatusCode(error.Status,new CodeResponse(error.Code));}
+        catch(HttpRequestException){return StatusCode(502,new CodeResponse("image_provider_error"));}
+        catch(OperationCanceledException)when(!token.IsCancellationRequested){return StatusCode(504,new CodeResponse("image_provider_busy"));}
     }
-
-
-
 }

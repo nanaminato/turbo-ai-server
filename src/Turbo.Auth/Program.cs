@@ -1,3 +1,4 @@
+using Turbo.Auth.Application.Media;
 using Turbo.Auth.Security.Registration;
 using Turbo.Auth.Security.FeatureAccess;
 using System.Threading.RateLimiting;
@@ -158,6 +159,8 @@ builder.Services.AddDbContext<KeyContext>(
 );
 builder.Services.AddScoped<FeatureIdentity>();
 builder.Services.AddSingleton<FeatureAccessStore>();
+builder.Services.AddSingleton<IImageTaskReceipts>(services => services.GetRequiredService<FeatureAccessStore>());
+builder.Services.AddScoped<APIMartImageService>();
 builder.Services.AddMemoryCache(); // 添加内存缓存支持
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient("AiProvider", client =>

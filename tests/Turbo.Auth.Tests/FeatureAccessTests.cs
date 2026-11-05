@@ -75,6 +75,11 @@ public class FeatureAccessTests
                 Assert.That(method.GetCustomAttribute<AllowAnonymousAttribute>(), Is.Null);
                 continue;
             }
+            if (type.Name == "APIMartGPTImageController" && method.Name == "Recover")
+            {
+                Assert.That(type.GetCustomAttributes<AuthorizeAttribute>().Any(), Is.True);
+                continue; // Receipt registration only; signed token verified, no provider call.
+            }
             if (method.Name == "GetChatModels") continue; // Authenticated discovery, no provider call.
             var feature = method.GetCustomAttribute<FeatureAccessAttribute>() ?? type.GetCustomAttribute<FeatureAccessAttribute>();
             Assert.That(feature, Is.Not.Null, $"{type.Name}.{method.Name}");
