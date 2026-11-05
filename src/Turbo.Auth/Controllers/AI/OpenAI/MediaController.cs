@@ -22,6 +22,11 @@ public sealed class MediaController(IMediaService media) : ControllerBase
     private async Task<ActionResult<ImageGenerationResponse>> Generate(ImageGenerationRequest request, bool dalle, CancellationToken token)
     {
         try { return Ok(await media.Image(request, dalle, token)); }
+        catch (KeyNotFoundException)
+        {
+            return StatusCode(503, new ProblemDetails { Status = 503, Title = "No available OpenAI image route for this model",
+                Extensions = { ["code"] = "image_route_unavailable" } });
+        }
         catch (ImageRequestException error)
         {
             return BadRequest(new ProblemDetails { Status = 400, Title = "Invalid image generation option",

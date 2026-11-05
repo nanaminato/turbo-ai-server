@@ -61,7 +61,12 @@ public sealed class MediaService(QuickModel routes, OpenAiClientFactory clients)
     public async Task<ImageGenerationResponse> Image(ImageGenerationRequest request, bool dalle, CancellationToken token)
     {
         ImageGenerationPolicy.RejectObsoleteModel(request.Model);
-        var route = routes.GetModelAndKey(request.Model);
+        // This endpoint requires synchronous OpenAI-compatible image responses.
+        // APIMart task receipts must go through the dedicated asynchronous endpoint.
+        var incompatible = routes.GetModelKeys(request.Model)
+            .Where(route => route.SupplierKey?.RequestIdentifier != (int)HandlerType.Openai)
+            .Select(route => route.RouteId).ToHashSet();
+        var route = routes.GetModelAndKey(request.Model, incompatible);
         using var lease = clients.Create(route);
         var payload = ImageGenerationPolicy.Build(request, route.Model!, dalle);
         using var content = System.ClientModel.BinaryContent.Create(BinaryData.FromObjectAsJson(payload));

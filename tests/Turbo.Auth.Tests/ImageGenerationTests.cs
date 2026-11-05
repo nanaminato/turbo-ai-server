@@ -12,6 +12,33 @@ namespace Turbo.Auth.Tests;
 
 public class ImageGenerationTests
 {
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task Synchronous_images_never_use_apimart_routes(bool openaiAvailable)
+    {
+        var transport = new Transport();
+        var routes = new QuickModel();
+        var weights = new List<WeightKey> {
+            new() { RouteId=1, Priority=0, Weight=1, ProviderModelValue="gpt-image-2.6-flare",
+                SupplierKey=new SupplierKey { RequestIdentifier=(int)HandlerType.ApiMart, ApiKey="wrong-protocol", BaseUrl="https://apimart.invalid/v1" } }
+        };
+        if (openaiAvailable) weights.Add(new() { RouteId=2, Priority=1, Weight=1, ProviderModelValue="gpt-image-2.6-flare",
+            SupplierKey=new SupplierKey { RequestIdentifier=(int)HandlerType.Openai, ApiKey="test-secret", BaseUrl="https://openai.invalid/v1" } });
+        routes.Transfer(new QuickModel { Quick=new() { ["gpt-image-2.6-flare"]=weights } });
+        var service = new MediaService(routes, new OpenAiClientFactory(new Factory(transport)));
+        var request = new ImageGenerationRequest {Model="gpt-image-2.6-flare",Prompt="icon"};
+        if (openaiAvailable) {
+            await service.Image(request, false, default);
+            Assert.That(transport.Uri!.Host, Is.EqualTo("openai.invalid"));
+        } else {
+            var result = await new MediaController(service).Gpt_image(request, default);
+            var problem = (ObjectResult)result.Result!;
+            Assert.That(problem.StatusCode, Is.EqualTo(503));
+            Assert.That(((ProblemDetails)problem.Value!).Extensions["code"], Is.EqualTo("image_route_unavailable"));
+            Assert.That(transport.Calls, Is.Zero);
+        }
+    }
+
     [TestCase("gpt-image-2.6-sunburst")]
     [TestCase("gpt-image-2.6-flare")]
     public async Task New_models_keep_routed_alias_and_only_supported_wire_options(string model)
