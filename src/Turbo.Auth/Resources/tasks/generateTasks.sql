@@ -15,3 +15,5 @@ create table GenerateTasks
 
 create index IX_GenerateTasks_AccountId
     on GenerateTasks (AccountId);
+
+CREATE INDEX IX_GenerateTasks_AccountId_DateTime_TaskId ON GenerateTasks (`AccountId`, `DateTime`, `TaskId`);

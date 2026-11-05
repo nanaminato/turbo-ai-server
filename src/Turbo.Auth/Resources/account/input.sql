@@ -16,7 +16,7 @@ SET @account_id = LAST_INSERT_ID();
 INSERT INTO AccountRoles (AccountId, RoleId)
 SELECT @account_id, RoleId
 FROM Roles
-WHERE Name = 'user';
+WHERE Code = 'user';
 
 -- 创建首个管理员时，额外执行以下语句：
 -- INSERT INTO AccountRoles (AccountId, RoleId)

@@ -7,8 +7,8 @@ namespace Turbo.Auth.Security.FeatureAccess;
 public sealed class FeatureIdentity(AuthContext database)
 {
     public async Task<string[]> Roles(int accountId, CancellationToken token) => await database.AccountRoles!
-        .AsNoTracking().Where(link => link.AccountId == accountId && link.Role != null && link.Role.Name != null)
-        .Select(link => link.Role!.Name!).Distinct().ToArrayAsync(token);
+        .AsNoTracking().Where(link => link.AccountId == accountId && link.Role != null && (link.Role.Code != null || link.Role.Name != null))
+        .Select(link => (link.Role!.Code ?? link.Role.Name)!).Distinct().ToArrayAsync(token);
     public static int? AccountId(ClaimsPrincipal principal) => principal.Identity?.IsAuthenticated == true &&
         int.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var id) && id > 0 ? id : null;
 }

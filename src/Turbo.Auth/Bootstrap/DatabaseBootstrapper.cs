@@ -99,7 +99,7 @@ public sealed class DatabaseBootstrapper
             SELECT COUNT(*) FROM Accounts a
             WHERE a.Username = @username OR a.Email = @email OR EXISTS (
                 SELECT 1 FROM AccountRoles ar JOIN Roles r ON r.RoleId = ar.RoleId
-                WHERE ar.AccountId = a.AccountId AND r.Name = 'admin')
+                WHERE ar.AccountId = a.AccountId AND r.Code = 'admin')
             """, connection, transaction);
         check.Parameters.AddWithValue("@username", admin.Username);
         check.Parameters.AddWithValue("@email", admin.Email);
@@ -107,7 +107,7 @@ public sealed class DatabaseBootstrapper
             throw new InvalidOperationException("管理员已存在，或用户名/邮箱已被使用；不会覆盖账户或密码。");
 
         var roles = new Dictionary<string, int>(StringComparer.Ordinal);
-        await using (var query = new MySqlCommand("SELECT RoleId, Name FROM Roles WHERE Name IN ('admin','user','vip')", connection, transaction))
+        await using (var query = new MySqlCommand("SELECT RoleId, Code FROM Roles WHERE Code IN ('admin','user','vip')", connection, transaction))
         await using (var reader = await query.ExecuteReaderAsync(cancellationToken))
         {
             while (await reader.ReadAsync(cancellationToken))

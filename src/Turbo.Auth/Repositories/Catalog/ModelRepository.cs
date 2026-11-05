@@ -15,19 +15,19 @@ public class ModelRepository: IModelRepository
 
     public async Task<List<Model>?> GetModelsAsync()
     {
-        return await _keyContext.Models!.ToListAsync();
+        return await _keyContext.Models!.AsNoTracking().ToListAsync();
     }
 
     public async Task<List<Model>?> GetChatModelsAsync()
     {
-        return await _keyContext.Models!
+        return await _keyContext.Models!.AsNoTracking()
             .Where(m => m.IsChatModel)
             .ToListAsync();
     } 
 
     public async Task<List<Model>?> GetModelsOfKeyAsync(int keyId)
     {
-        return await _keyContext.ModelKeyBinds!.Where(f => f.SupplierKeyId == keyId)
+        return await _keyContext.ModelKeyBinds!.AsNoTracking().Where(f => f.SupplierKeyId == keyId)
             .Include(f => f.Model)
             .Select(f => f.Model!)
             .ToListAsync();
@@ -84,20 +84,14 @@ public class ModelRepository: IModelRepository
 
     public async Task<Model?> GetModelByName(string name)
     {
-        return await _keyContext.Models!.FirstOrDefaultAsync(m => m.Name == name);
+        return await _keyContext.Models!.AsNoTracking().FirstOrDefaultAsync(m => m.Name == name);
     }
 
     public async Task SetEnableStatus(int id, bool enable)
     {
         // 真正的"模型可路由"由 ModelKeyBinds.Enable 决定；
         // Models.Enable 字段已移除，详见 upgrade-drop-models-enable.sql。
-        var modelKeyBinds = await _keyContext.ModelKeyBinds!.Where(mkb => mkb.ModelId == id)
-            .ToListAsync();
-        foreach (var mkb in modelKeyBinds)
-        {
-            mkb.Enable = enable;
-        }
-
-        await _keyContext.SaveChangesAsync();
+        await _keyContext.ModelKeyBinds!.Where(binding => binding.ModelId == id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(binding => binding.Enable, enable));
     }
 }

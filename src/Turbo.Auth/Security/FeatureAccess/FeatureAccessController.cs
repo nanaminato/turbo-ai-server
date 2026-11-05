@@ -36,11 +36,18 @@ public sealed class FeatureAccessController(FeatureAccessStore store, FeatureIde
     {
         if (!await IsAdmin(token)) return Forbid();
         var document = request.ToApplication();
-        var names = await database.Roles!.AsNoTracking().Where(role => role.Name != null)
-            .Select(role => role.Name!).ToListAsync(token);
+        var names = await database.Roles!.AsNoTracking().Where(role => (role.Code != null || role.Name != null))
+            .Select(role => (role.Code ?? role.Name)!).ToListAsync(token);
         if (document.Revision < 0 || !FeaturePolicies.IsValid(document, names.ToHashSet(StringComparer.Ordinal)))
             return BadRequest(new CodeResponse("invalid_feature_policy"));
-        if (!await store.Save(document, token)) return Conflict(new CodeResponse("feature_policy_conflict"));
+        try
+        {
+            if (!await store.Save(document, token)) return Conflict(new CodeResponse("feature_policy_conflict"));
+        }
+        catch (RoleRuleException error) when (error.Code == "invalid_feature_policy")
+        {
+            return BadRequest(new CodeResponse(error.Code));
+        }
         return Ok(FeaturePolicyContractDocument.From(document with { Revision = document.Revision + 1 }));
     }
     private async Task<bool> IsAdmin(CancellationToken token) => FeatureIdentity.AccountId(User) is { } id &&

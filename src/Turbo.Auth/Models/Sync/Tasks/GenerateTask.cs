@@ -9,12 +9,13 @@ public class GenerateTask
 {
     [Key]
     [Required]
+    [MaxLength(255)]
     [JsonProperty("task_id")]
     public string TaskId
     {
         get;
         set;
-    }
+    } = string.Empty;
     [JsonProperty("task_type")]
     public string? TaskType
     {

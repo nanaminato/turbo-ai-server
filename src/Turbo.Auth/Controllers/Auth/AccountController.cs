@@ -50,6 +50,7 @@ public class AccountController : Controller
             var account = await _accountRepository.GetAccountByIdAsync(id);
             return Ok(account);
         }
+        catch (RoleRuleException error) { return BadRequest(new CodeResponse(error.Code)); }
         catch (Exception)
         {
             return BadRequest(ApiMessages.Get("account_missing"));
@@ -66,6 +67,7 @@ public class AccountController : Controller
             await _accountRepository.AddAccountAsync(account);
             return Ok();
         }
+        catch (RoleRuleException error) { return BadRequest(new CodeResponse(error.Code)); }
         catch (Exception)
         {
             return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = ApiMessages.Get("account_create_failed") });
@@ -83,6 +85,7 @@ public class AccountController : Controller
             await _accountRepository.UpdateAccountAsync(account);
             return Ok();
         }
+        catch (RoleRuleException error) { return BadRequest(new CodeResponse(error.Code)); }
         catch (Exception)
         {
             return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = ApiMessages.Get("account_update_failed") });
@@ -121,6 +124,7 @@ public class AccountController : Controller
             await _accountRepository.DeleteAccountByIdAsync(id);
             return Ok();
         }
+        catch (RoleRuleException error) { return BadRequest(new CodeResponse(error.Code)); }
         catch (Exception)
         {
             return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = ApiMessages.Get("account_delete_failed") });

@@ -23,6 +23,8 @@ public class ArchitectureDatabaseTests
         Assert.That(await database.Scalar<long>("SELECT COUNT(*) FROM ChatMessages"), Is.EqualTo(2));
         await database.Execute(MySqlTestDatabase.Resource("ArchitectureUpgrade.sql"));
         await database.Execute(MySqlTestDatabase.Resource("RoutingWeight.sql"));
+        await database.Execute(MySqlTestDatabase.Resource("RoleSystem.sql"));
+        await database.Execute(MySqlTestDatabase.Resource("PerformanceIndexes.sql"));
         await Turbo.Auth.Bootstrap.ArchitectureSchemaCheck.Validate(connection.ConnectionString);
     }
 

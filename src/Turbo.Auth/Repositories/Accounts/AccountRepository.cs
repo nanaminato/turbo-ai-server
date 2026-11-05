@@ -13,11 +13,13 @@ public class AccountRepository : IAccountRepository
     private readonly IAccountPasswordService _passwordService;
     private readonly IAuthSessionService _sessions;
 
-    public AccountRepository(AuthContext authContext, IAccountPasswordService passwordService, IAuthSessionService sessions)
+    private readonly ILogger<AccountRepository>? _logger;
+    private readonly IHttpContextAccessor? _http;
+    public AccountRepository(AuthContext authContext, IAccountPasswordService passwordService, IAuthSessionService sessions, ILogger<AccountRepository>? logger = null, IHttpContextAccessor? http = null)
     {
         _authContext = authContext;
         _passwordService = passwordService;
-        _sessions = sessions;
+        _sessions = sessions; _logger = logger; _http = http;
     }
     public async Task AddUserAccountAsync(Account account)
     {
@@ -28,10 +30,10 @@ public class AccountRepository : IAccountRepository
             await _authContext.Accounts!.AddAsync(account);// 保存更改
             await _authContext.SaveChangesAsync();
             Console.WriteLine(account);
-            var role = await _authContext.Roles!.FirstOrDefaultAsync(r => r.Name == "user");
+            var role = await _authContext.Roles!.FirstOrDefaultAsync(r => (r.Code ?? r.Name) == "user");
             if (role == null)
             {
-                role = new Role { Name = "user" };
+                role = new Role { Code = "user", Name = "user" };
                 _authContext.Roles!.Add(role);
                 await _authContext.SaveChangesAsync();
             }
@@ -50,153 +52,78 @@ public class AccountRepository : IAccountRepository
         }
     }
 
-    public async Task AddAccountAsync(AccountWriteRequest accountBody)
+    public async Task AddAccountAsync(AccountWriteRequest body)
     {
-        try
-        {
-            var account = new Account()
-            {
-                Username = accountBody.Username,
-                Password = _passwordService.Hash(new Account(), accountBody.Password!),
-                Email = accountBody.Email
-            };
-            if (_authContext.Accounts!.Select(acc => acc.Username).Contains(account.Username))
-            {
-                throw new Exception("该用户已存在");
-            }
-            await _authContext.Accounts!.AddAsync(account);
-            await _authContext.SaveChangesAsync();
-            if (accountBody.UserRoles == null) return;
-            foreach (var role in accountBody.UserRoles ?? [])
-            {
-                var accountRole = new AccountRole()
-                {
-                    RoleId = role.RoleId,
-                    AccountId = account.AccountId,
-                };
-                await _authContext.AccountRoles!.AddAsync(accountRole);
-                await _authContext.SaveChangesAsync();
-            }
-
-            // Password, username, and role claims have changed. Revoke every active device immediately.
-            await _sessions.InvalidateAllAsync(account.AccountId);
-        }
-        catch (Exception)
-        {
-            throw new NotMatchException();
-        }
+        await using var tx = await _authContext.Database.BeginTransactionAsync();
+        await RoleSafety.Lock(_authContext);
+        var ids = await RoleSafety.ValidateRoles(_authContext, (body.UserRoles ?? []).Select(role => role.RoleId));
+        if (await _authContext.Accounts!.AnyAsync(item => item.Username == body.Username)) throw new RoleRuleException("account_already_exists");
+        var account = new Account { Username = body.Username, Email = body.Email };
+        account.Password = _passwordService.Hash(account, body.Password!);
+        _authContext.Accounts.Add(account); await _authContext.SaveChangesAsync();
+        _authContext.AccountRoles!.AddRange(ids.Select(id => new AccountRole { AccountId = account.AccountId, RoleId = id }));
+        await _authContext.SaveChangesAsync(); await tx.CommitAsync();
+        await Audit("create", account.AccountId, [], ids);
+    }
+    public async Task UpdateAccountAsync(AccountWriteRequest body)
+    {
+        await using var tx = await _authContext.Database.BeginTransactionAsync();
+        await RoleSafety.Lock(_authContext);
+        var ids = await RoleSafety.ValidateRoles(_authContext, (body.UserRoles ?? []).Select(role => role.RoleId));
+        var account = await _authContext.Accounts!.SingleOrDefaultAsync(item => item.AccountId == body.AccountId) ?? throw new RoleRuleException("account_not_found");
+        await RoleSafety.ProtectLastAdmin(_authContext, account.AccountId, ids);
+        if (await _authContext.Accounts.AnyAsync(item => item.AccountId != account.AccountId && item.Username == body.Username)) throw new RoleRuleException("account_already_exists");
+        account.Username = body.Username; account.Email = body.Email;
+        if (!string.IsNullOrWhiteSpace(body.Password)) account.Password = _passwordService.Hash(account, body.Password);
+        var links = await _authContext.AccountRoles!.Where(link => link.AccountId == account.AccountId).ToListAsync();
+        _authContext.AccountRoles.RemoveRange(links.Where(link => !ids.Contains(link.RoleId)));
+        _authContext.AccountRoles.AddRange(ids.Where(id => !links.Any(link => link.RoleId == id)).Select(id => new AccountRole { AccountId = account.AccountId, RoleId = id }));
+        await _authContext.SaveChangesAsync();
+        await _sessions.InvalidateAllAsync(account.AccountId);
+        await tx.CommitAsync();
+        await Audit("update", account.AccountId, links.Select(link => link.RoleId), ids);
     }
 
-    public async Task UpdateAccountAsync(AccountWriteRequest accountBody)
+    // Project only public fields; password hashes and security stamps stay in the database.
+    private IQueryable<AccountResponse> AccountResponses(int? roleId = null)
     {
-        try
+        var query = _authContext.Accounts!.AsNoTracking();
+        if (roleId is { } filter) query = query.Where(account => account.UserRoles!.Any(link => link.RoleId == filter));
+        return query.Select(account => new AccountResponse
         {
-            var account = await _authContext.Accounts!.FirstOrDefaultAsync(a => a.AccountId == accountBody.AccountId);
-            if (account == null)
-            {
-                throw new Exception("数据实体不存在");
-            }
-
-            account.Username = accountBody.Username;
-            if (!string.IsNullOrWhiteSpace(accountBody.Password))
-            {
-                account.Password = _passwordService.Hash(account, accountBody.Password);
-            }
-            account.Email = accountBody.Email;
-            await _authContext.SaveChangesAsync();
-            _authContext.AccountRoles!.RemoveRange(
-                await _authContext.AccountRoles!
-                    .Where(ar => ar.AccountId == account.AccountId)
-                    .ToListAsync());
-            await _authContext.SaveChangesAsync();
-
-            foreach (var role in accountBody.UserRoles ?? [])
-            {
-                var accountRole = new AccountRole()
-                {
-                    RoleId = role.RoleId,
-                    AccountId = account.AccountId,
-                };
-                await _authContext.AccountRoles!.AddAsync(accountRole);
-                await _authContext.SaveChangesAsync();
-            }
-
-            await _sessions.InvalidateAllAsync(account.AccountId);
-        }
-        catch (Exception)
-        {
-            throw new NotMatchException();
-        }
+            AccountId = account.AccountId, Username = account.Username, Email = account.Email,
+            UserRoles = account.UserRoles!.Where(link => link.Role != null)
+                .Select(link => new RoleResponse(link.Role!.RoleId, link.Role.Name, link.Role.Code ?? link.Role.Name,
+                    link.Role.Description, link.Role.Code == "admin" || link.Role.Code == "user" || link.Role.Code == "vip", 0)).ToList()
+        });
     }
 
-    public async Task<List<AccountResponse>> GetAccountsAsync()
-    {
-        var accounts = await _authContext.Accounts!
-            .AsNoTracking()
-            .Include(account => account.UserRoles)!
-            .ThenInclude(accountRole => accountRole.Role)
-            .ToListAsync();
+    public Task<List<AccountResponse>> GetAccountsAsync() => AccountResponses().ToListAsync();
 
-        return accounts.Select(ToResponse).ToList();
-    }
-    public async Task<List<AccountResponse>> GetAccountsWithRoleAsync(int roleId)
-    {
-        var accounts = await _authContext.Accounts!
-            .AsNoTracking()
-            .Where(account => account.UserRoles!.Any(accountRole => accountRole.RoleId == roleId))
-            .Include(account => account.UserRoles)!
-            .ThenInclude(accountRole => accountRole.Role)
-            .ToListAsync();
+    public Task<List<AccountResponse>> GetAccountsWithRoleAsync(int roleId) => AccountResponses(roleId).ToListAsync();
 
-        return accounts.Select(ToResponse).ToList();
-    }
-
-    public async Task<AccountResponse> GetAccountByIdAsync(int id)
-    {
-        var account = await _authContext.Accounts!
-            .AsNoTracking()
-            .Include(candidate => candidate.UserRoles)!
-            .ThenInclude(accountRole => accountRole.Role)
-            .FirstOrDefaultAsync(candidate => candidate.AccountId == id);
-        if (account == null)
-        {
-            throw new Exception();
-        }
-
-        return ToResponse(account);
-    }
-
-    private static AccountResponse ToResponse(Account account)
-    {
-        return new AccountResponse
-        {
-            AccountId = account.AccountId,
-            Username = account.Username,
-            Email = account.Email,
-            UserRoles = account.UserRoles?
-                .Select(accountRole => accountRole.Role)
-                .OfType<Role>()
-                .Select(role => new RoleResponse(role.RoleId, role.Name))
-                .ToList() ?? []
-        };
-    }
+    public async Task<AccountResponse> GetAccountByIdAsync(int id) =>
+        await AccountResponses().FirstOrDefaultAsync(account => account.AccountId == id)
+        ?? throw new RoleRuleException("account_not_found");
 
     public async Task DeleteAccountByIdAsync(int id)
     {
-        var account = await _authContext.Accounts!.Where(a => a.AccountId == id).Include(a => a.UserRoles)!.ThenInclude(a => a.Role).FirstOrDefaultAsync();
-        if (account != null)
-        {
-            foreach (var userRole in account.UserRoles!)
-            {
-                if (userRole.Role!.Name == "admin")
-                {
-                    throw new UnauthorizedAccessException("不允许删除管理员账户");
-                }
-            }
-            _authContext.Accounts!.Remove(account);
-        }
-        await _authContext.SaveChangesAsync();
+        await using var tx = await _authContext.Database.BeginTransactionAsync();
+        await RoleSafety.Lock(_authContext);
+        var account = await _authContext.Accounts!.SingleOrDefaultAsync(item => item.AccountId == id) ?? throw new RoleRuleException("account_not_found");
+        await RoleSafety.ProtectLastAdmin(_authContext, id, []);
+        var before = await _authContext.AccountRoles!.Where(link => link.AccountId == id).Select(link => link.RoleId).ToArrayAsync();
+        await _sessions.InvalidateAllAsync(id);
+        _authContext.Accounts.Remove(account);
+        await _authContext.SaveChangesAsync(); await tx.CommitAsync();
+        await Audit("delete", id, before, []);
     }
-
-
+    private async Task Audit(string action, int id, IEnumerable<int> before, IEnumerable<int> after)
+    {
+        if (_logger is null) return;
+        var codes = await _authContext.Roles!.AsNoTracking().ToDictionaryAsync(role => role.RoleId, role => role.Code ?? role.Name);
+        _logger.LogInformation("Account role management {Action}; actor {ActorId}; target {AccountId}; role codes {Before} to {After}", action,
+            _http?.HttpContext?.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, id,
+            string.Join(",", before.Select(role => codes.GetValueOrDefault(role))), string.Join(",", after.Select(role => codes.GetValueOrDefault(role))));
+    }
 }

@@ -72,30 +72,12 @@ public partial class AuthContext : DbContext
         });
         modelBuilder.Entity<AccountRole>().ToTable("AccountRoles");
         modelBuilder.Entity<Role>().ToTable("Roles");
+        modelBuilder.Entity<Role>().HasIndex(role => role.Code).IsUnique();
+        modelBuilder.Entity<AccountRole>().HasIndex(link => new { link.AccountId, link.RoleId }).IsUnique();
         modelBuilder.Entity<ChatHistory>().ToTable("ChatHistories");
         modelBuilder.Entity<ChatMessage>().ToTable("ChatMessages");
         modelBuilder.Entity<FileAdds>().ToTable("FileAdds");
-        // modelBuilder.Entity<GenerateTask>().ToTable("GenerateTasks");
-        modelBuilder.Entity<GenerateTask>(entity =>
-        {
-            entity.ToTable("GenerateTasks");
-
-            // 配置 Images 字段为 JSON
-            entity.Property(e => e.Images)
-                .HasColumnType("json") // 指定数据库类型为 json
-                .HasConversion(
-                    v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions)null),
-                    v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions)null)
-                );
-
-            // 配置 Videos 字段为 JSON
-            entity.Property(e => e.Videos)
-                .HasColumnType("json") // 指定数据库类型为 json
-                .HasConversion(
-                    v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions)null),
-                    v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions)null)
-                );
-        });
+        ConfigureRuntimeModel(modelBuilder);
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);

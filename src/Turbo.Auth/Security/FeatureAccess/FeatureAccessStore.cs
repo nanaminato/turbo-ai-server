@@ -1,5 +1,8 @@
 using System.Text.Json;
 using MySqlConnector;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Turbo.Auth.Data.Contexts;
 
 namespace Turbo.Auth.Security.FeatureAccess;
 
@@ -31,6 +34,15 @@ public sealed class FeatureAccessStore(IConfiguration configuration)
     {
         await using var connection = await Open(token);
         await using var transaction = await connection.BeginTransactionAsync(token);
+        // Match role-management lock order: roles first, then the policy document.
+        await using (var roleLock = Command(connection, transaction,
+            "SELECT RoleId FROM Roles WHERE Code='admin' FOR UPDATE")) await roleLock.ExecuteScalarAsync(token);
+        var codes = new HashSet<string>(StringComparer.Ordinal);
+        await using (var roles = Command(connection, transaction, "SELECT Code FROM Roles"))
+        await using (var reader = await roles.ExecuteReaderAsync(token))
+            while (await reader.ReadAsync(token)) codes.Add(reader.GetString(0));
+        if (document.Revision < 0 || !FeaturePolicies.IsValid(document, codes))
+            throw new RoleRuleException("invalid_feature_policy");
         await using (var seed = Command(connection, transaction,
             "INSERT INTO FeatureAccessPolicies (Id,Revision,Document) VALUES (1,0,@document) ON DUPLICATE KEY UPDATE Id=1",
             ("@document", JsonSerializer.Serialize(FeaturePolicies.Empty)))) await seed.ExecuteNonQueryAsync(token);
@@ -40,6 +52,36 @@ public sealed class FeatureAccessStore(IConfiguration configuration)
         var changed = await update.ExecuteNonQueryAsync(token) == 1;
         await transaction.CommitAsync(token);
         return changed;
+    }
+    // Called with the role-management lock held, inside the caller's transaction.
+    public static async Task RemoveRole(AuthContext database, string code)
+    {
+        var connection = database.Database.GetDbConnection();
+        await using var command = connection.CreateCommand();
+        command.Transaction = database.Database.CurrentTransaction?.GetDbTransaction()
+            ?? throw new InvalidOperationException("Role-policy cleanup requires a transaction.");
+        command.CommandText = database.Database.IsMySql()
+            ? "INSERT INTO FeatureAccessPolicies (Id,Revision,Document) VALUES (1,0,@empty) ON DUPLICATE KEY UPDATE Id=1"
+            : "INSERT INTO FeatureAccessPolicies (Id,Revision,Document) VALUES (1,0,@empty) ON CONFLICT(Id) DO NOTHING";
+        var empty = command.CreateParameter(); empty.ParameterName = "@empty";
+        empty.Value = JsonSerializer.Serialize(FeaturePolicies.Empty); command.Parameters.Add(empty);
+        await command.ExecuteNonQueryAsync(); command.Parameters.Clear();
+        command.CommandText = "SELECT Revision, Document FROM FeatureAccessPolicies WHERE Id=1" +
+            (database.Database.IsMySql() ? " FOR UPDATE" : "");
+        FeaturePolicyDocument document;
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            if (!await reader.ReadAsync()) return;
+            document = JsonSerializer.Deserialize<FeaturePolicyDocument>(reader.GetString(1))! with { Revision = reader.GetInt64(0) + 1 };
+        }
+        foreach (var feature in document.Features) feature.Roles.Remove(code);
+        command.CommandText = "UPDATE FeatureAccessPolicies SET Revision=@revision,Document=@document WHERE Id=1";
+        foreach (var (name, value) in new (string, object)[] { ("@revision", document.Revision), ("@document", JsonSerializer.Serialize(document)) })
+        {
+            var parameter = command.CreateParameter(); parameter.ParameterName = name; parameter.Value = value;
+            command.Parameters.Add(parameter);
+        }
+        await command.ExecuteNonQueryAsync();
     }
     public async Task<Admission> Acquire(int accountId, EffectiveFeature feature, CancellationToken token)
     {

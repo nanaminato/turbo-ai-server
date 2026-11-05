@@ -16,30 +16,23 @@ public class KeyRepository: IKeyRepository
 
     public async Task<List<SupplierKey>?> GetKeysAsync()
     {
-        return await _keyContext.SupplierKeys!.Include(k=>k.ModelKeyBinds)!.ThenInclude(f=>f.Model).ToListAsync();
+        return await _keyContext.SupplierKeys!.AsNoTrackingWithIdentityResolution().Include(k=>k.ModelKeyBinds)!.ThenInclude(f=>f.Model).ToListAsync();
     }
 
     public async Task<List<SupplierKey>?> GetKeysWithModelAsync(int modelId)
     {
-        var keyIds = await _keyContext.ModelKeyBinds!
-            .Where(f => f.ModelId == modelId)
-            .Select(f => f.SupplierKeyId)
+        return await _keyContext.SupplierKeys!.AsNoTrackingWithIdentityResolution()
+            .Where(key => key.ModelKeyBinds!.Any(binding => binding.ModelId == modelId))
+            .Include(key => key.ModelKeyBinds)!.ThenInclude(binding => binding.Model)
             .ToListAsync();
-
-        var keys = await _keyContext.SupplierKeys!
-            .Include(k => k.ModelKeyBinds)!
-            .ThenInclude(f => f.Model)
-            .Where(k => keyIds.Contains(k.SupplierKeyId))
-            .ToListAsync();
-
-        return keys;
     }
 
     public async Task<SupplierKey?> GetKeyByIdAsync(int id)
     {
-        return await _keyContext.SupplierKeys!.Where(k => k.SupplierKeyId == id)
-            .Include(k => k.ModelKeyBinds)!
-            .ThenInclude(f => f.Model).FirstOrDefaultAsync();
+        return await _keyContext.SupplierKeys!.AsNoTrackingWithIdentityResolution()
+            .Where(key => key.SupplierKeyId == id)
+            .Include(key => key.ModelKeyBinds)!.ThenInclude(binding => binding.Model)
+            .FirstOrDefaultAsync();
     }
 
     public async Task DeleteKeyByIdAsync(int id)

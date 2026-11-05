@@ -42,7 +42,10 @@ create table Roles
 (
     RoleId int auto_increment
         primary key,
-    Name   longtext not null
+    Code varchar(64) not null,
+    Name varchar(64) not null,
+    Description varchar(256) null,
+    constraint UX_Roles_Code unique (Code)
 );
 
 create table AccountRoles
@@ -59,8 +62,16 @@ create table AccountRoles
             on delete cascade
 );
 
+create unique index UX_AccountRoles_AccountId_RoleId on AccountRoles (AccountId, RoleId);
+
 create index IX_AccountRoles_AccountId
     on AccountRoles (AccountId);
 
 create index IX_AccountRoles_RoleId
     on AccountRoles (RoleId);
+
+CREATE INDEX IX_Accounts_Username ON Accounts (`Username`);
+
+CREATE INDEX IX_Accounts_Email ON Accounts (`Email`);
+
+CREATE INDEX IX_RefreshTokens_AccountId_RevokedAt_ExpiresAt ON RefreshTokens (`AccountId`, `RevokedAt`, `ExpiresAt`);

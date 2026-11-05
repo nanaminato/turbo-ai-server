@@ -277,6 +277,7 @@ builder.Services.TryAddEnumerable(
         ConfigureJwtBearerOptions>());
 builder.Services.AddScoped<IAuthSessionService, AuthSessionService>();
 
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("admin", policy => policy.RequireRole(["admin"]));

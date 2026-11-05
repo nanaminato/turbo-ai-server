@@ -7,6 +7,49 @@ namespace Turbo.Auth.Tests;
 
 public class FeatureAccessDatabaseTests
 {
+    [Test, Explicit("Requires isolated MySQL database")]
+    public async Task Deleted_role_grants_are_removed_and_stale_editor_cannot_restore_them_after_code_reuse()
+    {
+        await using var fixture = await MySqlTestDatabase.Create();
+        await fixture.Execute("INSERT INTO Roles(Code,Name) VALUES('admin','Administrator'),('reviewer','Reviewer')");
+        using var scoped = fixture.Connection();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            { ["ConnectionStrings:ciko"] = scoped.ConnectionString }).Build();
+        var store = new FeatureAccessStore(configuration);
+        var document = FeaturePolicies.Empty;
+        document.Features[0].Roles["reviewer"] = new FeatureGrant(true, 10, 100, 2);
+        Assert.That(await store.Save(document, default), Is.True);
+        var stale = await store.Read(default);
+        await using (var context = fixture.Auth())
+            await new Turbo.Auth.Repositories.Accounts.RoleRepository(context, RoleSafetyTests.Sessions(context))
+                .DeleteRoleByIdAsync(await fixture.Scalar<int>("SELECT RoleId FROM Roles WHERE Code='reviewer'"));
+        var after = await store.Read(default);
+        Assert.That(after.Revision, Is.EqualTo(stale.Revision + 1));
+        Assert.That(after.Features.All(feature => !feature.Roles.ContainsKey("reviewer")), Is.True);
+        await fixture.Execute("INSERT INTO Roles(Code,Name) VALUES('reviewer','New reviewer')");
+        Assert.That(await store.Save(stale, default), Is.False);
+        Assert.That(FeaturePolicies.Resolve(await store.Read(default), "chat", ["reviewer"]).Enabled, Is.False);
+    }
+
+    [Test, Explicit("Requires isolated MySQL database")]
+    public async Task Deletion_before_first_policy_save_invalidates_revision_zero_editor()
+    {
+        await using var fixture = await MySqlTestDatabase.Create();
+        await fixture.Execute("INSERT INTO Roles(Code,Name) VALUES('admin','Administrator'),('reviewer','Reviewer')");
+        using var scoped = fixture.Connection();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            { ["ConnectionStrings:ciko"] = scoped.ConnectionString }).Build();
+        var store = new FeatureAccessStore(configuration);
+        var stale = await store.Read(default);
+        await using (var context = fixture.Auth())
+            await new Turbo.Auth.Repositories.Accounts.RoleRepository(context, RoleSafetyTests.Sessions(context))
+                .DeleteRoleByIdAsync(await fixture.Scalar<int>("SELECT RoleId FROM Roles WHERE Code='reviewer'"));
+        await fixture.Execute("INSERT INTO Roles(Code,Name) VALUES('reviewer','New reviewer')");
+        stale.Features[0].Roles["reviewer"] = new FeatureGrant(true);
+        Assert.That(await store.Save(stale, default), Is.False);
+        Assert.That((await store.Read(default)).Revision, Is.EqualTo(1));
+    }
+
     [Test, Explicit("Requires TURBO_TEST_MYSQL; creates and drops an isolated test database.")]
     public async Task Distributed_admission_policy_conflicts_and_ownership_are_atomic()
     {

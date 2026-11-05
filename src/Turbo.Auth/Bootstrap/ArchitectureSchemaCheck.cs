@@ -7,6 +7,7 @@ public static class ArchitectureSchemaCheck
 {
     private static readonly Dictionary<string, string[]> RequiredColumns = new(StringComparer.Ordinal)
     {
+        ["Roles"] = ["Code", "Description"],
         ["RoutingConfiguration"] = ["Id", "Version"],
         ["SyncAccounts"] = ["AccountId", "Version"],
         ["SyncChanges"] = ["AccountId", "Version", "OperationId", "RequestHash", "Kind", "Action", "EntityId", "HistoryId", "Payload"],
@@ -38,7 +39,7 @@ public static class ArchitectureSchemaCheck
         }
         var indexes = await Read("SELECT TABLE_NAME,GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND NON_UNIQUE=0 GROUP BY TABLE_NAME,INDEX_NAME");
         foreach (var (table, fields) in new[] { ("ChatHistories", "UserId,DataId"), ("ChatMessages", "ChatHistoryId,DataId"),
-            ("SyncChanges", "AccountId,Version"), ("SyncChanges", "AccountId,OperationId") })
+            ("SyncChanges", "AccountId,Version"), ("SyncChanges", "AccountId,OperationId"), ("Roles", "Code"), ("AccountRoles", "AccountId,RoleId") })
             if (!indexes.Any(row => row[0] == table && row[1] == fields)) missing.Add(table + " unique(" + fields + ")");
         var triggers = await Read("SELECT TRIGGER_NAME FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE()");
         foreach (var table in new[] { "Models", "SupplierKeys", "ModelKeyBinds", "AvailableModels" })
@@ -55,9 +56,11 @@ public static class ArchitectureSchemaCheck
         if (missing.Count != 0)
         {
             var scripts = new List<string>();
+            if (missing.Any(item => item.StartsWith("Roles.") || item.StartsWith("Roles unique") || item.StartsWith("AccountRoles unique")))
+                scripts.Add("src/Turbo.Auth/Resources/merge/role-system-upgrade.sql");
             if (missing.Contains("ModelKeyBinds.RoutingWeight"))
                 scripts.Add("src/Turbo.Auth/Resources/merge/routing-weight-upgrade.sql");
-            if (missing.Any(item => item != "ModelKeyBinds.RoutingWeight" && !item.StartsWith("RegistrationEmailChallenges", StringComparison.Ordinal)))
+            if (missing.Any(item => item != "ModelKeyBinds.RoutingWeight" && !item.StartsWith("Roles") && !item.StartsWith("AccountRoles") && !item.StartsWith("RegistrationEmailChallenges", StringComparison.Ordinal)))
                 scripts.Add("src/Turbo.Auth/Resources/merge/architecture-upgrade.sql");
             if (missing.Any(item => item.StartsWith("RegistrationEmailChallenges", StringComparison.Ordinal)))
                 scripts.Add("src/Turbo.Auth/Resources/merge/registration-email-verification.sql");

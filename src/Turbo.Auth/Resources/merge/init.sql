@@ -42,7 +42,10 @@ create table Roles
 (
     RoleId int auto_increment
         primary key,
-    Name   longtext not null
+    Code varchar(64) not null,
+    Name varchar(64) not null,
+    Description varchar(256) null,
+    constraint UX_Roles_Code unique (Code)
 );
 
 create table AccountRoles
@@ -58,6 +61,8 @@ create table AccountRoles
         foreign key (RoleId) references Roles (RoleId)
             on delete cascade
 );
+
+create unique index UX_AccountRoles_AccountId_RoleId on AccountRoles (AccountId, RoleId);
 
 create index IX_AccountRoles_AccountId
     on AccountRoles (AccountId);
@@ -279,6 +284,14 @@ CREATE TABLE RegistrationEmailChallenges (
     NextSendAt datetime(6) NOT NULL,
     AttemptsLeft int NOT NULL
 );
+
+CREATE INDEX IX_Accounts_Username ON Accounts (`Username`);
+
+CREATE INDEX IX_Accounts_Email ON Accounts (`Email`);
+
+CREATE INDEX IX_GenerateTasks_AccountId_DateTime_TaskId ON GenerateTasks (`AccountId`, `DateTime`, `TaskId`);
+
+CREATE INDEX IX_RefreshTokens_AccountId_RevokedAt_ExpiresAt ON RefreshTokens (`AccountId`, `RevokedAt`, `ExpiresAt`);
 
 -- Every replica polls this shared revision; all catalog writers, including SQL maintenance, invalidate it.
 CREATE TABLE RoutingConfiguration (Id int NOT NULL PRIMARY KEY, Version bigint NOT NULL);

@@ -30,6 +30,9 @@ public partial class KeyContext : DbContext
         OnModelCreatingPartial(modelBuilder);
         modelBuilder.Entity<SupplierKey>().ToTable("SupplierKeys");
         modelBuilder.Entity<ModelKeyBind>().ToTable("ModelKeyBinds");
+        modelBuilder.Entity<ModelKeyBind>()
+            .HasIndex(binding => new { binding.ModelId, binding.Enable, binding.Priority })
+            .HasDatabaseName("IX_ModelKeyBinds_Routing");
         modelBuilder.Entity<Model>().ToTable("Models");
         modelBuilder.Entity<AvailableModel>().ToTable("AvailableModels");
 

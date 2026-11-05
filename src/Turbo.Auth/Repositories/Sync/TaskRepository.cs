@@ -16,7 +16,7 @@ public class TaskRepository : ITaskRepository
     /// </summary>
     public async Task<List<GenerateTask>> GetGenerateTasks(int userId, List<string>? taskIds)
     {
-        var query = _authContext.Set<GenerateTask>()
+        var query = _authContext.Set<GenerateTask>().AsNoTracking()
             .Where(t => t.AccountId == userId);
 
         // 如果 taskIds 不为空，则过滤掉包含在其中的 taskId
@@ -28,6 +28,7 @@ public class TaskRepository : ITaskRepository
 
         return await query
             .OrderBy(t => t.DateTime)
+            .ThenBy(t => t.TaskId)
             .ToListAsync();
     }
 

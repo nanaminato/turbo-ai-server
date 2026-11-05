@@ -132,7 +132,7 @@ public class AuthController : Controller
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
         var roles = await _context.AccountRoles!.AsNoTracking()
             .Where(a => a.AccountId == account.AccountId)
-            .Select(a => a.Role!.Name!)
+            .Select(a => (a.Role!.Code ?? a.Role.Name)!)
             .ToListAsync(cancellationToken);
         var claims = new List<Claim>
         {

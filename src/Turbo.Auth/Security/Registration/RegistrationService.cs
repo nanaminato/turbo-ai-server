@@ -113,7 +113,7 @@ public sealed class RegistrationService(AuthContext database, IAccountPasswordSe
             }
             if (await database.Accounts!.AnyAsync(account => account.Username == username || account.Email == email, token))
                 return RegistrationStatus.AccountExists;
-            var role = await database.Roles!.SingleOrDefaultAsync(item => item.Name == "user", token) ?? new Role { Name = "user" };
+            var role = await database.Roles!.SingleOrDefaultAsync(item => (item.Code ?? item.Name) == "user", token) ?? new Role { Code = "user", Name = "user" };
             var account = new Account { Username = username, Email = email };
             account.Password = passwords.Hash(account, request.Password!);
             database.Accounts!.Add(account);
