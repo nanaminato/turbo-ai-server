@@ -168,7 +168,7 @@ public class ApiContractTests
         var swagger = _app.Services.GetRequiredService<Swashbuckle.AspNetCore.Swagger.ISwaggerProvider>().GetSwagger("v1");
         var schemas = swagger.Components!.Schemas!;
         Assert.That(schemas["ChatMessageRequest"].Properties!["content"].OneOf, Has.Count.EqualTo(2));
-        Assert.That(schemas["ImageGenerationRequest"].Properties!.Keys, Does.Contain("response_format").And.Contain("output_format"));
+        Assert.That(schemas["ImageGenerationRequest"].Properties!.Keys, Does.Contain("output_format").And.Contain("complexity").And.Not.Contain("response_format").And.Not.Contain("style"));
         Assert.That(schemas["ImageResultResponse"].Properties!.Keys, Does.Contain("b64_json").And.Contain("revised_prompt"));
     }
 

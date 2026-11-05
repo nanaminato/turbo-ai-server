@@ -60,27 +60,16 @@ public sealed class MediaService(QuickModel routes, OpenAiClientFactory clients)
     }
     public async Task<ImageGenerationResponse> Image(ImageGenerationRequest request, bool dalle, CancellationToken token)
     {
+        ImageGenerationPolicy.RejectObsoleteModel(request.Model);
         var route = routes.GetModelAndKey(request.Model);
         using var lease = clients.Create(route);
-        var gptImage = route.Model!.StartsWith("gpt-image", StringComparison.OrdinalIgnoreCase);
-        var size = request.Size.Split('x');
-        var options = new ImageGenerationOptions
-        {
-            Size = request.Size == "auto" ? GeneratedImageSize.Auto : new GeneratedImageSize(int.Parse(size[0]), int.Parse(size[1])),
-            Quality = request.Quality is null ? (GeneratedImageQuality?)null : new GeneratedImageQuality(request.Quality),
-            ResponseFormat = gptImage ? (GeneratedImageFormat?)null : request.ResponseFormat == "b64_json" ? GeneratedImageFormat.Bytes : GeneratedImageFormat.Uri,
-            Style = dalle && request.Style is not null ? new GeneratedImageStyle(request.Style) : (GeneratedImageStyle?)null,
-            Background = !dalle && request.Background is not null ? new GeneratedImageBackground(request.Background) : (GeneratedImageBackground?)null,
-            OutputFileFormat = !dalle && request.OutputFormat is not null ? new GeneratedImageFileFormat(request.OutputFormat) : (GeneratedImageFileFormat?)null,
-            ModerationLevel = !dalle && request.Moderation is not null ? new GeneratedImageModerationLevel(request.Moderation) : (GeneratedImageModerationLevel?)null
-        };
-        var result = (await lease.Client.GetImageClient(route.Model).GenerateImagesAsync(request.Prompt,
-            route.Model == "dall-e-3" ? 1 : request.N, options, token)).Value;
-        return new(result.CreatedAt.ToUnixTimeSeconds(), result.Select(image => new ImageResultResponse(image.ImageUri?.ToString(),
-            image.ImageBytes is null ? null : Convert.ToBase64String(image.ImageBytes.ToArray()), image.RevisedPrompt)).ToList(),
-            result.Background?.ToString(), result.OutputFileFormat?.ToString(), result.Quality?.ToString(), result.Size?.ToString(),
-            result.Usage is null ? null : new ImageUsageResponse(result.Usage.InputTokenCount, result.Usage.OutputTokenCount, result.Usage.TotalTokenCount));
+        var payload = ImageGenerationPolicy.Build(request, route.Model!, dalle);
+        using var content = System.ClientModel.BinaryContent.Create(BinaryData.FromObjectAsJson(payload));
+        var result = await lease.Client.GetImageClient(route.Model!).GenerateImagesAsync(content,
+            new System.ClientModel.Primitives.RequestOptions { CancellationToken = token });
+        return ImageGenerationPolicy.Response(result.GetRawResponse().Content, payload);
     }
+
     private static IReadOnlyList<AudioSegmentResponse>? Segments(IReadOnlyList<TranscribedSegment>? segments) => segments?.Select(segment =>
         new AudioSegmentResponse(segment.Id, segment.SeekOffset, segment.StartTime.TotalSeconds, segment.EndTime.TotalSeconds,
             segment.Text, segment.TokenIds.ToArray(), segment.Temperature, segment.AverageLogProbability,

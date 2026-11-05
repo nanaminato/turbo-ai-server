@@ -116,7 +116,7 @@ public class OfficialSdkTests
             Reply =
             "{\"created\":123,\"data\":[{\"b64_json\":\"AQID\",\"revised_prompt\":\"revised\"}],\"usage\":{\"input_tokens\":1,\"output_tokens\":2,\"total_tokens\":3}}"
         };
-        var result = await Media(transport, "gpt-image-test").Image(new ImageGenerationRequest
+        var result = await Media(transport, "gpt-image-2.6-flare").Image(new ImageGenerationRequest
         {
             Model = "logical",
             Prompt = "image",
@@ -131,7 +131,7 @@ public class OfficialSdkTests
             Assert.That(result.Data.Single().Base64, Is.EqualTo("AQID"));
             Assert.That(result.Data.Single().RevisedPrompt, Is.EqualTo("revised"));
             Assert.That(result.Usage!.TotalTokens, Is.EqualTo(3));
-            Assert.That(body["model"]!.Value<string>(), Is.EqualTo("gpt-image-test"));
+            Assert.That(body["model"]!.Value<string>(), Is.EqualTo("gpt-image-2.6-flare"));
             Assert.That(body["response_format"], Is.Null);
             Assert.That(body["background"]!.Value<string>(), Is.EqualTo("transparent"));
         });

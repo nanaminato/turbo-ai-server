@@ -68,6 +68,13 @@ public class FeatureAccessTests
         foreach (var type in controllers)
         foreach (var method in type.GetMethods().Where(method => method.GetCustomAttributes<HttpMethodAttribute>().Any()))
         {
+            // Retired HTTP 410 actions never call a provider and need authentication, not feature quota.
+            if (method.GetCustomAttributes<Microsoft.AspNetCore.Mvc.ProducesResponseTypeAttribute>().Any(attribute => attribute.StatusCode == 410))
+            {
+                Assert.That(method.GetCustomAttributes<AuthorizeAttribute>().Any() || type.GetCustomAttributes<AuthorizeAttribute>().Any(), Is.True);
+                Assert.That(method.GetCustomAttribute<AllowAnonymousAttribute>(), Is.Null);
+                continue;
+            }
             if (method.Name == "GetChatModels") continue; // Authenticated discovery, no provider call.
             var feature = method.GetCustomAttribute<FeatureAccessAttribute>() ?? type.GetCustomAttribute<FeatureAccessAttribute>();
             Assert.That(feature, Is.Not.Null, $"{type.Name}.{method.Name}");
