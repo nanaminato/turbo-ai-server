@@ -25,6 +25,7 @@ using Turbo.Auth.Controllers.AI.Chat;
 using Turbo.Auth.Controllers.Files;
 using Turbo.Auth.Models.Suppliers;
 using Turbo.Auth.Repositories.Catalog;
+using Turbo.Auth.Security.FeatureAccess;
 
 namespace Turbo.Auth.Tests;
 
@@ -67,6 +68,7 @@ public class ApiContractTests
         builder.Services.AddSingleton(new DataSyncService(null!));
         builder.Services.AddSingleton(new Turbo.Auth.Security.FeatureAccess.FeatureAccessStore(builder.Configuration));
         builder.Services.AddSingleton(new Turbo.Auth.Security.FeatureAccess.FeatureIdentity(null!));
+        builder.Services.AddSingleton<IFeatureUsageReader, UsageStub>();
         builder.Services.AddSingleton(new Turbo.Auth.Data.Contexts.AuthContext(builder.Configuration));
         _app = builder.Build();
         _app.Use(async (context, next) =>
@@ -170,6 +172,39 @@ public class ApiContractTests
         Assert.That(schemas["ChatMessageRequest"].Properties!["content"].OneOf, Has.Count.EqualTo(2));
         Assert.That(schemas["ImageGenerationRequest"].Properties!.Keys, Does.Contain("output_format").And.Contain("complexity").And.Not.Contain("response_format").And.Not.Contain("style"));
         Assert.That(schemas["ImageResultResponse"].Properties!.Keys, Does.Contain("b64_json").And.Contain("revised_prompt"));
+        Assert.That(swagger.Info.Title, Is.EqualTo("RelaxKon Server API"));
+        Assert.That(swagger.Paths.Keys, Does.Contain("/api/feature-access/usage"));
+        Assert.That(typeof(ChatController).Assembly.GetName().Name, Is.EqualTo("Turbo.Auth"));
+    }
+
+    [Test]
+    public async Task Usage_endpoint_preserves_camel_case_nullable_limits_and_current_account_scope()
+    {
+        using var response = await _client.GetAsync("api/feature-access/usage?accountId=99");
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That(response.Headers.CacheControl!.NoStore, Is.True);
+        var body = JObject.Parse(await response.Content.ReadAsStringAsync());
+        Assert.That(body["policyRevision"]!.Value<long>(), Is.EqualTo(4));
+        Assert.That(body["observedAt"]!.Type, Is.EqualTo(Newtonsoft.Json.Linq.JTokenType.Date));
+        var chat = body["features"]![0]!;
+        Assert.That(chat["key"]!.Value<string>(), Is.EqualTo("chat"));
+        Assert.That(chat["minuteUsed"]!.Value<long>(), Is.EqualTo(1));
+        Assert.That(chat["minuteRemaining"]!.Value<long>(), Is.EqualTo(9));
+        Assert.That(chat["dayRemaining"]!.Type, Is.EqualTo(JTokenType.Null));
+        Assert.That(chat["concurrentRemaining"]!.Value<long>(), Is.EqualTo(1));
+    }
+
+    private sealed class UsageStub : IFeatureUsageReader
+    {
+        public Task<FeatureUsageSnapshot> ReadUsage(int accountId, CancellationToken token)
+        {
+            Assert.That(accountId, Is.EqualTo(1));
+            const long now = 1793923805;
+            var document = FeaturePolicies.Empty with { Revision = 4 };
+            document.Features[0].Roles["user"] = new(true, 10, null, 2);
+            return Task.FromResult(FeatureUsageProjection.Create(now, document, ["user"],
+                [new("chat", now / 60, now / 86400, 1, 5, 1)]));
+        }
     }
 
     [TestCase("{\"username\":\"new\",\"email\":\"new@example.invalid\",\"password\":\"secret123\",\"confirm\":\"secret123\"}")]

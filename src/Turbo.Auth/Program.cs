@@ -75,7 +75,8 @@ builder.Services.AddCors(options => options.AddPolicy("CorsPolicy",
             // Local development uses bearer tokens, so no credentialed CORS is needed.
             set.AllowAnyOrigin()
                 .AllowAnyHeader()
-                .AllowAnyMethod();
+                .AllowAnyMethod()
+                .WithExposedHeaders("Retry-After");
         }
         else if (allowedOrigins.Length == 0)
         {
@@ -86,6 +87,7 @@ builder.Services.AddCors(options => options.AddPolicy("CorsPolicy",
             set.WithOrigins(allowedOrigins)
                 .AllowAnyHeader()
                 .AllowAnyMethod()
+                .WithExposedHeaders("Retry-After")
                 .AllowCredentials();
         }
     }));
@@ -159,6 +161,7 @@ builder.Services.AddDbContext<KeyContext>(
 );
 builder.Services.AddScoped<FeatureIdentity>();
 builder.Services.AddSingleton<FeatureAccessStore>();
+builder.Services.AddSingleton<IFeatureUsageReader, FeatureUsageReader>();
 builder.Services.AddSingleton<IImageTaskReceipts>(services => services.GetRequiredService<FeatureAccessStore>());
 builder.Services.AddScoped<APIMartImageService>();
 builder.Services.AddMemoryCache(); // 添加内存缓存支持
