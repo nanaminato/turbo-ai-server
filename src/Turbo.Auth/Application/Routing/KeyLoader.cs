@@ -1,4 +1,5 @@
 using System.Data;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Turbo.Auth.Data.Contexts;
 
@@ -9,11 +10,23 @@ public sealed class KeyLoader(KeyContext database, IKeyPoolRepository pool, Rout
     public async Task LoadKeys(CancellationToken cancellationToken = default)
     {
         await gate.Mutex.WaitAsync(cancellationToken);
+        SqliteTransaction? sqliteSnapshot = null;
+        var sqliteConnectionOpened = false;
         try
         {
             database.Database.SetCommandTimeout(5);
-            await using var transaction = await database.Database.BeginTransactionAsync(database.Database.ProviderName?.Contains("MySql", StringComparison.OrdinalIgnoreCase) == true
-                ? IsolationLevel.RepeatableRead : IsolationLevel.Serializable, cancellationToken);
+            if (database.Database.IsSqlite())
+            {
+                await database.Database.OpenConnectionAsync(cancellationToken);
+                sqliteConnectionOpened = true;
+                // A routing poll is read-only. A deferred WAL snapshot sees a consistent
+                // revision/catalog without reserving SQLite's single writer every poll.
+                sqliteSnapshot = ((SqliteConnection)database.Database.GetDbConnection()).BeginTransaction(deferred: true);
+            }
+            await using var transaction = sqliteSnapshot is not null
+                ? (await database.Database.UseTransactionAsync(sqliteSnapshot, cancellationToken))!
+                : await database.Database.BeginTransactionAsync(database.Database.ProviderName?.Contains("MySql", StringComparison.OrdinalIgnoreCase) == true
+                    ? IsolationLevel.RepeatableRead : IsolationLevel.Serializable, cancellationToken);
             var revision = await database.Database.SqlQuery<long>($"SELECT Version AS Value FROM RoutingConfiguration WHERE Id=1")
                 .SingleAsync(cancellationToken);
             if (gate.LoadedRevision != revision)
@@ -27,6 +40,14 @@ public sealed class KeyLoader(KeyContext database, IKeyPoolRepository pool, Rout
             else await transaction.CommitAsync(cancellationToken);
             gate.Checked();
         }
-        finally { gate.Mutex.Release(); }
+        finally
+        {
+            try
+            {
+                if (sqliteSnapshot is not null) await sqliteSnapshot.DisposeAsync();
+                if (sqliteConnectionOpened) await database.Database.CloseConnectionAsync();
+            }
+            finally { gate.Mutex.Release(); }
+        }
     }
 }

@@ -14,6 +14,8 @@
 
 功能 key：`chat`、`image`（所有 OpenAI/APIMart 生图入口共享）、`tts`、`transcription`、`translation`、`file-extraction`、`image-task`、`image-proxy`。模型枚举是认证读取；公开模型目录保持公开。聊天历史同步保持既有身份/所有权规则；身份验证、密码重置与控制平面保留现有独立认证/速率策略，不通过 AI 策略授予管理员权限。新增收费/计算功能必须添加 key、端点元数据和测试。
 
+SQLite 支持说明：本页 MySQL/InnoDB 描述仍适用于默认 provider；SQLite 在同一本机持久文件上使用 immediate 写事务和 deferred 读快照，部署与并发边界见 [数据库 provider](database-providers.md)。
+
 ## 只读用量快照
 
 `GET /api/feature-access/usage` 返回 `{observedAt,policyRevision,features}`，时间为 UTC ISO 8601。每项包含原有效策略字段 `key/enabled/requestsPerMinute/requestsPerDay/maxConcurrent`，以及 `minuteUsed/dayUsed/activeRequests`、`minuteRemaining/dayRemaining/concurrentRemaining`、`minuteResetsAt/dayResetsAt`。

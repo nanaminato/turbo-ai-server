@@ -8,6 +8,8 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <EmbeddedResource Include="Resources/sqlite/init.sql" LogicalName="Turbo.Auth.Bootstrap.SqliteSchema.sql" />
+        <EmbeddedResource Include="Resources/sqlite/seed.sql" LogicalName="Turbo.Auth.Bootstrap.SqliteSeed.sql" />
         <EmbeddedResource Include="Resources/merge/init.sql" LogicalName="Turbo.Auth.Bootstrap.Schema.sql" />
         <EmbeddedResource Include="Resources/merge/open-initdata.sql" LogicalName="Turbo.Auth.Bootstrap.Seed.sql" />
     </ItemGroup>
@@ -18,7 +20,8 @@
         
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
         <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.11" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

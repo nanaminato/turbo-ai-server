@@ -12,7 +12,13 @@ public class RoutingWeightDatabaseTests
         await db.Execute("INSERT INTO AvailableModels(Enable,Name,IsChatModel,ModelValue,Vision) VALUES (1,'Old',1,'chatgpt-4o-latest',1),(1,'Custom',1,'my-custom-model',0)");
         await db.Execute(MySqlTestDatabase.Resource("ModelCatalogRefresh.sql"));
         await db.Execute(MySqlTestDatabase.Resource("ModelCatalogRefresh.sql"));
-        Assert.That(await db.Scalar<long>("SELECT COUNT(*) FROM AvailableModels"),Is.EqualTo(6));
+        // The curated catalog now contains nine entries. Assert identities as well as
+        // count so a removed/duplicated model cannot hide behind a stale magic number.
+        string[] curated = ["gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna",
+            "claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5", "gemini-3.8-flash"];
+        await using (var context = db.Keys())
+            Assert.That(await context.AvailableModels!.AsNoTracking().Select(model => model.ModelValue).ToArrayAsync(),
+                Is.EquivalentTo(curated.Append("my-custom-model")));
         Assert.That(await db.Scalar<long>("SELECT COUNT(*) FROM AvailableModels WHERE ModelValue='my-custom-model'"),Is.EqualTo(1));
         Assert.That(await db.Scalar<long>("SELECT COUNT(*) FROM AvailableModels WHERE ModelValue='chatgpt-4o-latest'"),Is.Zero);
         Assert.That(await db.Scalar<long>("SELECT COUNT(*) FROM ChatMessages"),Is.EqualTo(2));

@@ -3,10 +3,14 @@
 ## 前置条件
 
 - .NET SDK 10（版本由 `global.json` 固定）。
-- MySQL 8.4 或兼容版本。
+- MySQL 8.4 或兼容版本，或 SQLite 本地持久化文件（不需要 MySQL 服务）。
 - 生产环境可选 Redis；未设置 `ConnectionStrings:Redis` 时服务使用进程内缓存。
 
-## 数据库初始化
+## 选择数据库
+
+`Database:Provider` 可为 `MySql` 或 `Sqlite`，默认 `MySql`。`ConnectionStrings:ciko` 对应所选数据库。SQLite 使用独立完整初始化和预检，见 [SQLite 首次部署与限制](database-providers.md)。下节 SQL 客户端初始化及已有升级脚本仅适用于 MySQL。
+
+## MySQL 数据库初始化
 
 首次部署只需通过 MySQL 客户端导入 SQL，不需要运行任何 .NET 初始化命令：
 

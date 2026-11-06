@@ -1,3 +1,4 @@
+using Turbo.Auth.Data;
 using Turbo.Auth.Application.Media;
 using Turbo.Auth.Security.Registration;
 using Turbo.Auth.Security.FeatureAccess;
@@ -131,20 +132,14 @@ builder.Services.AddRateLimiter(options =>
 });
 builder.Services.AddSignalR();
 Turbo.Auth.Configuration.ApiDocumentation.AddApiDocumentation(builder.Services);
-var connectionString = builder.Configuration.GetConnectionString("ciko");
-if (string.IsNullOrWhiteSpace(connectionString))
-{
-    throw new InvalidOperationException("ConnectionStrings:ciko must be configured through environment-specific configuration or a secret store.");
-}
-
-var serverVersion = new MySqlServerVersion(new Version(8, 4, 6));
+var databaseProvider = DatabaseProvider.FromConfiguration(builder.Configuration);
 var enableSensitiveDatabaseLogging = builder.Environment.IsDevelopment() &&
                                      builder.Configuration.GetValue<bool>("Diagnostics:EnableSensitiveDataLogging");
 
 void ConfigureDatabase(DbContextOptionsBuilder options)
 {
-    options.UseMySql(connectionString, serverVersion)
-        .LogTo(Console.WriteLine, LogLevel.Error);
+    databaseProvider.Configure(options);
+    options.LogTo(Console.WriteLine, LogLevel.Error);
 
     if (enableSensitiveDatabaseLogging)
     {

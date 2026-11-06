@@ -1,28 +1,25 @@
 using System.Text.Json;
 using Turbo.Auth.Application.Media;
-using MySqlConnector;
+using System.Data.Common;
+using Turbo.Auth.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Turbo.Auth.Data.Contexts;
 
 namespace Turbo.Auth.Security.FeatureAccess;
 
-// All replicas share the same MySQL rows. No process-local fallback is allowed.
+// Admission is serialized by database locks, never by a process-local fallback.
 public sealed class FeatureAccessStore(IConfiguration configuration) : IImageTaskReceipts
 {
-    private async Task<MySqlConnection> Open(CancellationToken token)
+    private readonly DatabaseProvider provider = DatabaseProvider.FromConfiguration(configuration);
+    private async Task<DbConnection> Open(CancellationToken token)
     {
-        var connection = new MySqlConnection(configuration.GetConnectionString("ciko"));
-        await connection.OpenAsync(token);
-        return connection;
+        var connection = provider.CreateConnection();
+        try { await connection.OpenAsync(token); return connection; }
+        catch { await connection.DisposeAsync(); throw; }
     }
-    private static MySqlCommand Command(MySqlConnection connection, MySqlTransaction? transaction, string sql,
-        params (string, object?)[] parameters)
-    {
-        var command = new MySqlCommand(sql, connection, transaction);
-        foreach (var (key, value) in parameters) command.Parameters.AddWithValue(key, value ?? DBNull.Value);
-        return command;
-    }
+    private DbCommand Command(DbConnection connection, DbTransaction? transaction, string sql,
+        params (string, object?)[] parameters) => provider.Command(connection, transaction, sql, parameters);
     public async Task<FeaturePolicyDocument> Read(CancellationToken token)
     {
         await using var connection = await Open(token);
@@ -34,10 +31,11 @@ public sealed class FeatureAccessStore(IConfiguration configuration) : IImageTas
     public async Task<bool> Save(FeaturePolicyDocument document, CancellationToken token)
     {
         await using var connection = await Open(token);
-        await using var transaction = await connection.BeginTransactionAsync(token);
+        await using var transaction = await provider.BeginWrite(connection, token);
         // Match role-management lock order: roles first, then the policy document.
         await using (var roleLock = Command(connection, transaction,
-            "SELECT RoleId FROM Roles WHERE Code='admin' FOR UPDATE")) await roleLock.ExecuteScalarAsync(token);
+            provider.Choose("SELECT RoleId FROM Roles WHERE Code='admin' FOR UPDATE",
+                "SELECT RoleId FROM Roles WHERE Code='admin'"))) await roleLock.ExecuteScalarAsync(token);
         var codes = new HashSet<string>(StringComparer.Ordinal);
         await using (var roles = Command(connection, transaction, "SELECT Code FROM Roles"))
         await using (var reader = await roles.ExecuteReaderAsync(token))
@@ -45,7 +43,8 @@ public sealed class FeatureAccessStore(IConfiguration configuration) : IImageTas
         if (document.Revision < 0 || !FeaturePolicies.IsValid(document, codes))
             throw new RoleRuleException("invalid_feature_policy");
         await using (var seed = Command(connection, transaction,
-            "INSERT INTO FeatureAccessPolicies (Id,Revision,Document) VALUES (1,0,@document) ON DUPLICATE KEY UPDATE Id=1",
+            provider.Choose("INSERT INTO FeatureAccessPolicies (Id,Revision,Document) VALUES (1,0,@document) ON DUPLICATE KEY UPDATE Id=1",
+                "INSERT INTO FeatureAccessPolicies (Id,Revision,Document) VALUES (1,0,@document) ON CONFLICT(Id) DO NOTHING"),
             ("@document", JsonSerializer.Serialize(FeaturePolicies.Empty)))) await seed.ExecuteNonQueryAsync(token);
         await using var update = Command(connection, transaction,
             "UPDATE FeatureAccessPolicies SET Revision=Revision+1,Document=@document WHERE Id=1 AND Revision=@revision",
@@ -87,15 +86,17 @@ public sealed class FeatureAccessStore(IConfiguration configuration) : IImageTas
     public async Task<Admission> Acquire(int accountId, EffectiveFeature feature, CancellationToken token)
     {
         await using var connection = await Open(token);
-        await using var transaction = await connection.BeginTransactionAsync(token);
+        await using var transaction = await provider.BeginWrite(connection, token);
         var args = new (string, object?)[] { ("@account", accountId), ("@feature", feature.Key) };
         await using (var seed = Command(connection, transaction,
-            "INSERT INTO FeatureAccessUsage (AccountId,FeatureKey) VALUES (@account,@feature) ON DUPLICATE KEY UPDATE AccountId=@account", args))
+            provider.Choose("INSERT INTO FeatureAccessUsage (AccountId,FeatureKey) VALUES (@account,@feature) ON DUPLICATE KEY UPDATE AccountId=@account",
+                "INSERT INTO FeatureAccessUsage (AccountId,FeatureKey) VALUES (@account,@feature) ON CONFLICT(AccountId,FeatureKey) DO NOTHING"), args))
             await seed.ExecuteNonQueryAsync(token);
         // A stable account+feature row serializes all admission decisions, even at window boundaries.
         long minute, day, minuteCount, dayCount, now;
         await using (var read = Command(connection, transaction,
-            "SELECT MinuteWindow,DayWindow,MinuteCount,DayCount,UNIX_TIMESTAMP() FROM FeatureAccessUsage WHERE AccountId=@account AND FeatureKey=@feature FOR UPDATE", args))
+            provider.Choose("SELECT MinuteWindow,DayWindow,MinuteCount,DayCount,UNIX_TIMESTAMP() FROM FeatureAccessUsage WHERE AccountId=@account AND FeatureKey=@feature FOR UPDATE",
+                "SELECT MinuteWindow,DayWindow,MinuteCount,DayCount,CAST(strftime('%s','now') AS INTEGER) FROM FeatureAccessUsage WHERE AccountId=@account AND FeatureKey=@feature"), args))
         await using (var reader = await read.ExecuteReaderAsync(token))
         {
             await reader.ReadAsync(token);
@@ -104,7 +105,8 @@ public sealed class FeatureAccessStore(IConfiguration configuration) : IImageTas
         if (minute != now / 60) minuteCount=0;
         if (day != now / 86400) dayCount=0;
         await using (var cleanup = Command(connection, transaction,
-            "DELETE FROM FeatureAccessLeases WHERE AccountId=@account AND FeatureKey=@feature AND ExpiresAt<=UTC_TIMESTAMP()", args))
+            provider.Choose("DELETE FROM FeatureAccessLeases WHERE AccountId=@account AND FeatureKey=@feature AND ExpiresAt<=UTC_TIMESTAMP()",
+                "DELETE FROM FeatureAccessLeases WHERE AccountId=@account AND FeatureKey=@feature AND ExpiresAt<=datetime('now')"), args))
             await cleanup.ExecuteNonQueryAsync(token);
         await using var active = Command(connection, transaction,
             "SELECT COUNT(*) FROM FeatureAccessLeases WHERE AccountId=@account AND FeatureKey=@feature", args);
@@ -119,7 +121,8 @@ public sealed class FeatureAccessStore(IConfiguration configuration) : IImageTas
             args.Concat(new (string, object?)[] { ("@minute", now/60), ("@day", now/86400), ("@mc", minuteCount+1), ("@dc", dayCount+1) }).ToArray()))
             await update.ExecuteNonQueryAsync(token);
         await using (var lease = Command(connection, transaction,
-            "INSERT INTO FeatureAccessLeases (LeaseId,AccountId,FeatureKey,ExpiresAt) VALUES (@id,@account,@feature,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 90 SECOND))",
+            provider.Choose("INSERT INTO FeatureAccessLeases (LeaseId,AccountId,FeatureKey,ExpiresAt) VALUES (@id,@account,@feature,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 90 SECOND))",
+                "INSERT INTO FeatureAccessLeases (LeaseId,AccountId,FeatureKey,ExpiresAt) VALUES (@id,@account,@feature,datetime('now','+90 seconds'))"),
             args.Append(("@id", (object?)id)).ToArray())) await lease.ExecuteNonQueryAsync(token);
         await transaction.CommitAsync(token);
         return new(id, 0);
@@ -127,13 +130,15 @@ public sealed class FeatureAccessStore(IConfiguration configuration) : IImageTas
     public async Task RecordTask(int accountId, string taskId, CancellationToken token, int? supplierKeyId = null)
     {
         await using var connection = await Open(token);
-        await using var transaction = await connection.BeginTransactionAsync(token);
+        await using var transaction = await provider.BeginWrite(connection, token);
         await using (var command = Command(connection, transaction,
-            "INSERT INTO FeatureAccessTasks (TaskId,AccountId,SupplierKeyId) VALUES (@id,@account,@key) ON DUPLICATE KEY UPDATE TaskId=TaskId",
+            provider.Choose("INSERT INTO FeatureAccessTasks (TaskId,AccountId,SupplierKeyId) VALUES (@id,@account,@key) ON DUPLICATE KEY UPDATE TaskId=TaskId",
+                "INSERT INTO FeatureAccessTasks (TaskId,AccountId,SupplierKeyId) VALUES (@id,@account,@key) ON CONFLICT(TaskId) DO NOTHING"),
             ("@id", taskId), ("@account",accountId), ("@key",supplierKeyId)))
             await command.ExecuteNonQueryAsync(token);
         await using (var check = Command(connection, transaction,
-            "SELECT AccountId,SupplierKeyId FROM FeatureAccessTasks WHERE TaskId=@id FOR UPDATE", ("@id",taskId)))
+            provider.Choose("SELECT AccountId,SupplierKeyId FROM FeatureAccessTasks WHERE TaskId=@id FOR UPDATE",
+                "SELECT AccountId,SupplierKeyId FROM FeatureAccessTasks WHERE TaskId=@id"), ("@id",taskId)))
         await using (var reader = await check.ExecuteReaderAsync(token))
         {
             if (!await reader.ReadAsync(token) || reader.GetInt32(0) != accountId ||
@@ -162,7 +167,8 @@ public sealed class FeatureAccessStore(IConfiguration configuration) : IImageTas
     {
         await using var connection = await Open(token);
         await using var command = Command(connection, null,
-            "UPDATE FeatureAccessLeases SET ExpiresAt=DATE_ADD(UTC_TIMESTAMP(),INTERVAL 90 SECOND) WHERE LeaseId=@id AND ExpiresAt>UTC_TIMESTAMP()", ("@id",id));
+            provider.Choose("UPDATE FeatureAccessLeases SET ExpiresAt=DATE_ADD(UTC_TIMESTAMP(),INTERVAL 90 SECOND) WHERE LeaseId=@id AND ExpiresAt>UTC_TIMESTAMP()",
+                "UPDATE FeatureAccessLeases SET ExpiresAt=datetime('now','+90 seconds') WHERE LeaseId=@id AND ExpiresAt>datetime('now')"), ("@id",id));
         return await command.ExecuteNonQueryAsync(token) == 1;
     }
     public async Task Release(string id, CancellationToken token)

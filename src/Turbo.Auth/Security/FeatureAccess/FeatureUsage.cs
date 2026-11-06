@@ -1,6 +1,5 @@
-using System.Data;
 using System.Text.Json;
-using MySqlConnector;
+using Turbo.Auth.Data;
 
 namespace Turbo.Auth.Security.FeatureAccess;
 
@@ -44,53 +43,56 @@ public static class FeatureUsageProjection
 // Advisory, read-only snapshot. Admission remains authoritative and may change immediately after this read.
 public sealed class FeatureUsageReader(IConfiguration configuration) : IFeatureUsageReader
 {
+    private readonly DatabaseProvider provider = DatabaseProvider.FromConfiguration(configuration);
+
     public async Task<FeatureUsageSnapshot> ReadUsage(int accountId, CancellationToken token)
     {
         if (accountId <= 0) throw new ArgumentOutOfRangeException(nameof(accountId));
-        await using var connection = new MySqlConnection(configuration.GetConnectionString("ciko"));
+        await using var connection = provider.CreateConnection();
         await connection.OpenAsync(token);
-        // Explicit isolation: policy, current roles, counters and leases share one InnoDB MVCC snapshot.
+        // Policy, current roles, counters and leases share one consistent database snapshot.
         // No FOR UPDATE, cleanup, seeding or writes: viewing usage never consumes or resets quota.
-        await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, token);
+        await using var transaction = await provider.BeginRead(connection, token);
         long now;
-        DateTime utc;
+        object utc;
         FeaturePolicyDocument document;
-        await using (var command = new MySqlCommand("""
+        await using (var command = provider.Command(connection, transaction, provider.Choose("""
             SELECT UNIX_TIMESTAMP(), UTC_TIMESTAMP(), policy.Revision, policy.Document
             FROM (SELECT 1 AS Id) singleton
             LEFT JOIN FeatureAccessPolicies policy ON policy.Id=singleton.Id
-            """, connection, transaction))
+            """, """
+            SELECT CAST(strftime('%s','now') AS INTEGER), datetime('now'), policy.Revision, policy.Document
+            FROM (SELECT 1 AS Id) singleton
+            LEFT JOIN FeatureAccessPolicies policy ON policy.Id=singleton.Id
+            """)))
         await using (var reader = await command.ExecuteReaderAsync(token))
         {
             await reader.ReadAsync(token);
             now = reader.GetInt64(0);
-            utc = reader.GetDateTime(1);
+            utc = provider.IsSqlite ? reader.GetString(1) : reader.GetDateTime(1);
             document = reader.IsDBNull(2) ? FeaturePolicies.Empty
                 : JsonSerializer.Deserialize<FeaturePolicyDocument>(reader.GetString(3))!
                     with { Revision = reader.GetInt64(2) };
         }
         var roles = new List<string>();
-        await using (var command = new MySqlCommand("""
+        await using (var command = provider.Command(connection, transaction, """
             SELECT DISTINCT COALESCE(r.Code,r.Name) FROM AccountRoles ar
             INNER JOIN Roles r ON r.RoleId=ar.RoleId
             WHERE ar.AccountId=@account AND COALESCE(r.Code,r.Name) IS NOT NULL
-            """, connection, transaction))
+            """, ("@account", accountId)))
         {
-            command.Parameters.AddWithValue("@account", accountId);
             await using var reader = await command.ExecuteReaderAsync(token);
             while (await reader.ReadAsync(token)) roles.Add(reader.GetString(0));
         }
         var counters = new List<FeatureUsageCounter>();
-        await using (var command = new MySqlCommand("""
+        await using (var command = provider.Command(connection, transaction, """
             SELECT u.FeatureKey,u.MinuteWindow,u.DayWindow,u.MinuteCount,u.DayCount,
                 (SELECT COUNT(*) FROM FeatureAccessLeases l
                  WHERE l.AccountId=u.AccountId AND l.FeatureKey=u.FeatureKey
                     AND l.ExpiresAt>@utc)
             FROM FeatureAccessUsage u WHERE u.AccountId=@account
-            """, connection, transaction))
+            """, ("@account", accountId), ("@utc", utc)))
         {
-            command.Parameters.AddWithValue("@account", accountId);
-            command.Parameters.AddWithValue("@utc", utc);
             await using var reader = await command.ExecuteReaderAsync(token);
             while (await reader.ReadAsync(token)) counters.Add(new(reader.GetString(0), reader.GetInt64(1),
                 reader.GetInt64(2), reader.GetInt64(3), reader.GetInt64(4), reader.GetInt64(5)));
