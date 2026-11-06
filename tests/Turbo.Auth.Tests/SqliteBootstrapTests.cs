@@ -72,7 +72,11 @@ public class SqliteBootstrapTests
     [Test]
     public async Task New_sqlite_file_is_owner_only_on_unix()
     {
-        if (OperatingSystem.IsWindows()) Assert.Ignore("Unix file modes do not apply on Windows.");
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Ignore("Unix file modes do not apply on Windows.");
+            return;
+        }
         await new DatabaseBootstrapper().RunAsync(_provider, Admin, true);
         Assert.That(File.GetUnixFileMode(DatabasePath), Is.EqualTo(UnixFileMode.UserRead | UnixFileMode.UserWrite));
     }
