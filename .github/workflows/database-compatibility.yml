@@ -14,7 +14,7 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - run: dotnet restore
-      - run: dotnet test Turbo.AI.Server.sln -c Release --no-restore
+      - run: dotnet test RelaxKon.AI.Server.sln -c Release --no-restore
   mysql:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -37,13 +37,13 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - run: dotnet restore
-      - run: dotnet build Turbo.AI.Server.sln -c Release --no-restore
+      - run: dotnet build RelaxKon.AI.Server.sln -c Release --no-restore
       - name: Run each explicit MySQL suite in isolated temporary databases
         shell: bash
         run: |
           set -euo pipefail
           for suite in ArchitectureDatabaseTests FeatureAccessDatabaseTests FeatureUsageDatabaseTests APIMartTaskReceiptDatabaseTests RegistrationDatabaseTests PasswordResetDatabaseTests RoleSafetyTests RuntimeQueryTests PerformanceIndexDatabaseTests RoutingWeightDatabaseTests; do
-            dotnet test tests/Turbo.Auth.Tests/Turbo.Auth.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~$suite" --logger "trx;LogFileName=$suite.trx" --results-directory TestResults/mysql
+            dotnet test tests/RelaxKon.Auth.Tests/RelaxKon.Auth.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~$suite" --logger "trx;LogFileName=$suite.trx" --results-directory TestResults/mysql
           done
       - name: Ensure all 35 explicit MySQL cases executed successfully
         run: |

@@ -14,7 +14,7 @@
 
 ```bash
 dotnet restore
-dotnet publish src/Turbo.Auth/Turbo.Auth.csproj -c Release -o ./publish
+dotnet publish src/RelaxKon.Auth/RelaxKon.Auth.csproj -c Release -o ./publish
 cd publish
 
 # 使用专属服务账户；容器需挂载本机持久卷。限制本机其他账户访问。
@@ -27,14 +27,14 @@ export ConnectionStrings__ciko='Data Source=/absolute/persistent/relaxkon/relaxk
 export ConnectionStrings__Redis=''
 
 # 仅用于全新空库；交互输入首个管理员用户名、真实邮箱、密码。
-dotnet Turbo.Auth.dll --init-db
+dotnet RelaxKon.Auth.dll --init-db
 
 # 用独立强随机值配置下列两个 secret；不能使用示例值。
 export Jwt__SecretKey='replace-with-a-long-random-secret'
 export Jwt__RefreshTokenPepper='replace-with-another-long-random-secret'
 export DataProtection__KeyPath='/absolute/persistent/relaxkon/keys'
 export Cors__AllowedOrigins__0='https://app.example.com'
-ASPNETCORE_ENVIRONMENT=Production dotnet Turbo.Auth.dll
+ASPNETCORE_ENVIRONMENT=Production dotnet RelaxKon.Auth.dll
 ```
 
 `--init-db` 创建完整 schema、9 个公开模型条目、三个基础角色及首个管理员，密码存储为 Identity 哈希。管理员可直接登录，无需 SMTP 设置初始密码；公开注册和邮件重置仍需单独配置 SMTP。不会创建真实供应商密钥。功能配额默认不授权，登录后由管理员在权限页面显式配置角色功能。
@@ -69,7 +69,7 @@ MySQL 部署可回滚本次代码且无需数据库降级；SQLite 部署不能�
 
 ## 验证
 
-普通 `dotnet test Turbo.AI.Server.sln -c Release` 包含真实临时 SQLite 文件、独立连接并发和完整初始化 schema 测试，不使用业务数据库或真实供应商。
+普通 `dotnet test RelaxKon.AI.Server.sln -c Release` 包含真实临时 SQLite 文件、独立连接并发和完整初始化 schema 测试，不使用业务数据库或真实供应商。
 
 MySQL 集成测试是显式测试，需专用 `TURBO_TEST_MYSQL` 连接，测试创建并删除自己的随机临时库。用单独类过滤器运行并确认执行数量，不能把普通测试中的 skipped 当通过。现有历史 MySQL 验证见 [MySQL 验证记录](mysql-verification.md)；本轮实际结果以 PR 记录为准。
 

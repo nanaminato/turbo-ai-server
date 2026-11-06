@@ -13,7 +13,7 @@
 
 ## 已有数据库
 
-完成既有结构升级后执行 `src/Turbo.Auth/Resources/merge/performance-index-upgrade.sql`。该脚本只添加上述索引，没有 DELETE、UPDATE、DROP INDEX 或 ALTER COLUMN。按精确索引名称判重，可重复运行；若发现同名索引的列顺序、唯一性或前缀长度不符，会在添加任何持久索引前拒绝执行，需人工核查差异。不同名称的等价索引不会被自动删除或复用。
+完成既有结构升级后执行 `src/RelaxKon.Auth/Resources/merge/performance-index-upgrade.sql`。该脚本只添加上述索引，没有 DELETE、UPDATE、DROP INDEX 或 ALTER COLUMN。按精确索引名称判重，可重复运行；若发现同名索引的列顺序、唯一性或前缀长度不符，会在添加任何持久索引前拒绝执行，需人工核查差异。不同名称的等价索引不会被自动删除或复用。
 
 脚本需要选定数据库以及索引创建权限，客户端需支持用户变量和 PREPARE。不要在业务事务内执行：MySQL CREATE INDEX 会隐式提交。建议低峰期执行，耗时和锁影响取决于表大小及服务器负载；中断后可重新运行。校验失败后先关闭执行会话，再修复结构并重试，以释放临时校验表。
 
@@ -24,7 +24,7 @@
 使用被 Git 忽略的 `tests/mysql.runsettings.user` 中的测试连接。测试清空连接中的默认数据库，仅创建和删除随机的 `turbo_arch_test_<guid>` 临时库，不选择既有业务库。
 
 ~~~powershell
-dotnet test tests/Turbo.Auth.Tests/Turbo.Auth.Tests.csproj --configuration Release --no-restore --settings tests/mysql.runsettings.user --filter FullyQualifiedName~PerformanceIndexDatabaseTests --logger 'trx;LogFileName=performance-indexes.trx' --results-directory TestResults/performance-indexes
+dotnet test tests/RelaxKon.Auth.Tests/RelaxKon.Auth.Tests.csproj --configuration Release --no-restore --settings tests/mysql.runsettings.user --filter FullyQualifiedName~PerformanceIndexDatabaseTests --logger 'trx;LogFileName=performance-indexes.trx' --results-directory TestResults/performance-indexes
 ~~~
 
 MySQL 8.4.13 上四项检查通过：

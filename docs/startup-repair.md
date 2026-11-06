@@ -10,7 +10,7 @@
 
 1. 只读核对实际表、列、索引与触发器；确认同步客户端 ID 无重复，没有其他活动连接操作目标库，模型别名与优先级列已经存在。
 2. 将原有全部 18 张表的结构及 48 行数据备份到 Git 忽略的 `TestResults/startup-repair-backups/`。备份含账户、令牌和密钥数据，只保留在本地，不提交或上传。SQL 备份应恢复到独立空库，不能直接向非空库重复导入。
-3. 执行已有 `src/Turbo.Auth/Resources/merge/architecture-upgrade.sql`，新增 SyncAccounts、SyncChanges、RoutingConfiguration、2 个聊天唯一索引及 12 个路由触发器。没有重跑 init.sql，没有删除或合并既有数据。
+3. 执行已有 `src/RelaxKon.Auth/Resources/merge/architecture-upgrade.sql`，新增 SyncAccounts、SyncChanges、RoutingConfiguration、2 个聊天唯一索引及 12 个路由触发器。没有重跑 init.sql，没有删除或合并既有数据。
 4. 对所有原有表逐行生成 SHA256，排序后汇总比较；迁移前后行数与内容指纹均一致。检查新增结构与路由版本种子行通过。
 5. 重新用 http 启动配置运行，成功监听 localhost:5111；Swagger 页面与 JSON、验证码、公开模型接口均返回 HTTP 200。验证结束后停止临时进程，开发者可用 Rider 或原命令正常启动。
 

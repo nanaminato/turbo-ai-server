@@ -24,7 +24,7 @@ APIMart 2.6 文档已公开，但其模型介绍页仍提示尚未上线。此�
 
 ## 数据库与部署
 
-`FeatureAccessTasks` 新增 nullable `SupplierKeyId`，无外键，保留密钥删除后的任务归属。已有部署停止写入后执行一次 `src/Turbo.Auth/Resources/merge/apimart-task-route-upgrade.sql`，再启动新版。不要通过重跑 `feature-access.sql` 代替升级，因为 CREATE IF NOT EXISTS 不会给旧表加列。新库初始化已同步。旧回执保留 NULL，延续兼容查询；新任务都写入密钥绑定。
+`FeatureAccessTasks` 新增 nullable `SupplierKeyId`，无外键，保留密钥删除后的任务归属。已有部署停止写入后执行一次 `src/RelaxKon.Auth/Resources/merge/apimart-task-route-upgrade.sql`，再启动新版。不要通过重跑 `feature-access.sql` 代替升级，因为 CREATE IF NOT EXISTS 不会给旧表加列。新库初始化已同步。旧回执保留 NULL，延续兼容查询；新任务都写入密钥绑定。
 
 开发库 niko 已完成升级，全部 22 张业务表行数不变。升级前/后记录位于 Git 忽略的 `TestResults/apimart-route-upgrade-20261105-234838/`。新版启动检查通过，创建、上传、回执恢复和任务查询的未登录请求均返回 401；验证实例已关闭。
 

@@ -14,8 +14,8 @@
 
 首次部署只需通过 MySQL 客户端导入 SQL，不需要运行任何 .NET 初始化命令：
 
-1. 创建空数据库，依次导入 `src/Turbo.Auth/Resources/merge/init.sql` 和 `open-initdata.sql`。
-2. 在 `src/Turbo.Auth/Resources/account/create-admin.sql` 顶部填写管理员用户名与**真实可收信邮箱**，导入该文件。
+1. 创建空数据库，依次导入 `src/RelaxKon.Auth/Resources/merge/init.sql` 和 `open-initdata.sql`。
+2. 在 `src/RelaxKon.Auth/Resources/account/create-admin.sql` 顶部填写管理员用户名与**真实可收信邮箱**，导入该文件。
 3. 配置下面的邮件服务，正常部署并启动应用，在登录页选择“忘记密码”，输入用户名和邮箱，通过邮件设置初始密码。
 
 管理员 SQL 使用空密码占位，初始无法登录，不需要填写明文或生成哈希。邮件设置密码后自动保存 Identity 密码哈希，管理员拥有 `admin`、`user`、`vip` 角色。脚本不会覆盖已有账户或已有管理员；若已经有管理员，保留原账户，只需确保邮箱可用，即可使用同一邮件重置流程。
@@ -51,7 +51,7 @@ export PasswordReset__SmtpPassword='your-mailbox-password-or-client-security-pas
 
 `SmtpUsername` 是 SMTP 认证账号；`FromAddress` 是用户在邮件里看到的实际发件地址，阿里邮箱通常应与认证账号保持一致。管理员的收件地址来自数据库 `Accounts.Email`，与发件地址分开配置。
 
-本地开发也可将这些值放入 Git 已忽略的 `src/Turbo.Auth/appsettings.Development.json` 中的 `PasswordReset` 节。环境变量优先级高于 JSON，修改后重启后端生效。生产环境使用服务管理器、容器或托管平台的环境变量/密钥配置，不要把真实密码写入 `appsettings.example.json` 或提交到仓库。
+本地开发也可将这些值放入 Git 已忽略的 `src/RelaxKon.Auth/appsettings.Development.json` 中的 `PasswordReset` 节。环境变量优先级高于 JSON，修改后重启后端生效。生产环境使用服务管理器、容器或托管平台的环境变量/密钥配置，不要把真实密码写入 `appsettings.example.json` 或提交到仓库。
 
 SMTP 使用 MailKit：`EnableSsl=true` 时，465 使用隐式 TLS，其他端口使用必需的 STARTTLS，不会静默降级为明文；465 不允许关闭 TLS。阿里企业邮箱使用 `smtp.qiye.aliyun.com:465`，用户名为完整邮箱地址。未启用第三方客户端安全密码时使用邮箱登录密码；启用后必须使用独立的客户端安全密码，同时须开放 SMTP/第三方客户端登录权限。`PublicBaseUrl` 为可信的前端部署根地址，生产使用 HTTPS；本地调试允许 localhost HTTP。链接不使用客户端传入的 Host 或跳转地址。
 
@@ -67,7 +67,7 @@ SMTP 使用 MailKit：`EnableSsl=true` 时，465 使用隐式 TLS，其他端口
 
 ## 配置服务
 
-以 `src/Turbo.Auth/appsettings.example.json` 为模板创建环境专用配置。不要提交该文件或真实凭据。生产环境推荐使用环境变量或密钥存储：
+以 `src/RelaxKon.Auth/appsettings.example.json` 为模板创建环境专用配置。不要提交该文件或真实凭据。生产环境推荐使用环境变量或密钥存储：
 
 ```bash
 export ConnectionStrings__ciko='server=db;port=3306;database=turboai;user=turboai;password=replace-me;Charset=utf8mb4'
@@ -87,8 +87,8 @@ export Cors__AllowedOrigins__0='https://app.example.com'
 
 ```bash
 dotnet restore
-dotnet publish src/Turbo.Auth/Turbo.Auth.csproj --configuration Release --output ./publish
-ASPNETCORE_ENVIRONMENT=Production dotnet ./publish/Turbo.Auth.dll
+dotnet publish src/RelaxKon.Auth/RelaxKon.Auth.csproj --configuration Release --output ./publish
+ASPNETCORE_ENVIRONMENT=Production dotnet ./publish/RelaxKon.Auth.dll
 ```
 
 示例配置中的 Kestrel 监听 `0.0.0.0:6000`。在生产环境使用反向代理终止 TLS，并将代理来源加入 CORS 白名单。Swagger 仅在 `Development` 环境注册，不应默认公开到生产网络。
@@ -105,7 +105,7 @@ npm run build
 将构建产物中的浏览器文件部署到：
 
 ```text
-src/Turbo.Auth/wwwroot
+src/RelaxKon.Auth/wwwroot
 ```
 
 服务会为所有非文件路径回退到 `index.html`，因此聊天、图像、多媒体和管理路由共享同一入口。不要再创建 `wwwroot/ai`、`wwwroot/admin`，也不再支持通过 `assets/config.json` 在运行时设置 API 地址。
@@ -121,7 +121,7 @@ src/Turbo.Auth/wwwroot
 
 ## 2026-11-04 架构升级
 
-已有数据库在停止写入并备份后，运行一次 `src/Turbo.Auth/Resources/merge/architecture-upgrade.sql`；新库使用已包含这些表和触发器的 `merge/init.sql`。不要对已有库重跑完整初始化脚本。
+已有数据库在停止写入并备份后，运行一次 `src/RelaxKon.Auth/Resources/merge/architecture-upgrade.sql`；新库使用已包含这些表和触发器的 `merge/init.sql`。不要对已有库重跑完整初始化脚本。
 
 先检查重复客户端 ID：
 
@@ -152,4 +152,4 @@ SELECT ChatHistoryId, DataId, COUNT(*) FROM ChatMessages GROUP BY ChatHistoryId,
 
 ### 独立路由权重升级（2026-11-05）
 
-已完成架构升级的库还需执行一次 `src/Turbo.Auth/Resources/merge/routing-weight-upgrade.sql`。刷新旧快捷添加示例使用可重复运行的 `model-catalog-refresh.sql`。不要在已有库重跑 init.sql；具体升级顺序、兼容行为见 [模型目录与路由权重](model-catalog-and-routing.md)。
+已完成架构升级的库还需执行一次 `src/RelaxKon.Auth/Resources/merge/routing-weight-upgrade.sql`。刷新旧快捷添加示例使用可重复运行的 `model-catalog-refresh.sql`。不要在已有库重跑 init.sql；具体升级顺序、兼容行为见 [模型目录与路由权重](model-catalog-and-routing.md)。

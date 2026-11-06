@@ -17,9 +17,9 @@ SDK 版本于 2026-11-04 核验为 NuGet 最新稳定版并显式固定；不自
 
 ```bash
 dotnet restore
-dotnet build Turbo.AI.Server.sln --configuration Release --no-restore
-dotnet test Turbo.AI.Server.sln --configuration Release --no-build
-dotnet list Turbo.AI.Server.sln package --vulnerable --include-transitive
+dotnet build RelaxKon.AI.Server.sln --configuration Release --no-restore
+dotnet test RelaxKon.AI.Server.sln --configuration Release --no-build
+dotnet list RelaxKon.AI.Server.sln package --vulnerable --include-transitive
 ```
 
 完整的第三方归属见 [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md)。

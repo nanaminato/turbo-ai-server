@@ -10,7 +10,7 @@ admin/user/vip 是系统编码，不能删除或改编码，可以修改名称�
 
 ## 已有数据库部署
 
-正常启动只读检查要求 Roles.Code、Roles.Description、Code 唯一索引以及 AccountRoles(AccountId,RoleId) 唯一索引。已有库须停止应用写入后执行 src/Turbo.Auth/Resources/merge/role-system-upgrade.sql，再启动新版后端。新库 init.sql、open-initdata.sql 和 create-admin 脚本已同步。角色迁移不修改聊天历史或功能策略内容。
+正常启动只读检查要求 Roles.Code、Roles.Description、Code 唯一索引以及 AccountRoles(AccountId,RoleId) 唯一索引。已有库须停止应用写入后执行 src/RelaxKon.Auth/Resources/merge/role-system-upgrade.sql，再启动新版后端。新库 init.sql、open-initdata.sql 和 create-admin 脚本已同步。角色迁移不修改聊天历史或功能策略内容。
 
 升级脚本为一次性 MySQL DDL，会隐式提交，不能依赖事务整体回滚。先核对/备份数据库。脚本先用临时 CHECK 表拒绝空名称、超过 64 字符、重复角色名、重复成员绑定；需人工修复这些既有异常后再迁移，禁止自动合并权限。部署客户端须遇错停止，不能使用 mysql --force 跳过保护。中断后先检查实际列和索引，禁止整份盲目重跑。运行中的旧后端仍按 Name 授权，因此不能混用新旧后端并修改显示名。
 

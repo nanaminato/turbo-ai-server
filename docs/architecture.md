@@ -6,35 +6,35 @@
 浏览器 / 前端应用
         │ HTTP + JWT / SSE
         ▼
-Turbo.Auth (ASP.NET Core)
+RelaxKon.Auth (ASP.NET Core)
  ├── Controllers：认证、管理、聊天、媒体、同步、文件提取
  ├── Repositories：账户、角色、模型、密钥、历史和任务的数据访问
  ├── KeyLoader + StableKeyPoolRepository：构建并原子发布可用的密钥/模型路由快照
  ├── Provider registry：按供应商类型解析已注册的聊天适配器
  ├── Chat handlers：OpenAI-compatible、Gemini、Anthropic、DashScope 等适配器
- └── Turbo.Kit：TXT、DOCX、PDF 文本提取
+ └── RelaxKon.Kit：TXT、DOCX、PDF 文本提取
         │
         ├── MySQL：业务数据和供应商配置
         ├── Redis：生产环境的分布式缓存（未配置时使用内存缓存）
         └── 上游 AI API
 ```
 
-`src/Turbo.Auth/Program.cs` 是组合根：它注册数据库上下文、认证授权、缓存、控制器和处理器，由 `RoutingRefreshService` 在启动接受流量前调用 `IKeyLoader.LoadKeys()`，随后轮询共享配置版本。`src/Turbo.Kit` 是独立类库，供文件提取接口和测试项目共享。
+`src/RelaxKon.Auth/Program.cs` 是组合根：它注册数据库上下文、认证授权、缓存、控制器和处理器，由 `RoutingRefreshService` 在启动接受流量前调用 `IKeyLoader.LoadKeys()`，随后轮询共享配置版本。`src/RelaxKon.Kit` 是独立类库，供文件提取接口和测试项目共享。
 
 ## 仓库布局
 
 ```text
 src/
-├── Turbo.Auth/          ASP.NET Core 服务
+├── RelaxKon.Auth/          ASP.NET Core 服务
 │   ├── Application/     聊天适配器、供应商目录和模型路由
 │   ├── Contracts/       HTTP 请求、响应与输入校验
 │   ├── Controllers/     HTTP 端点，按业务能力分组
 │   ├── Data/Contexts/   Entity Framework Core 上下文
 │   ├── Models/          数据库实体与内部模型
 │   └── Repositories/    数据访问实现
-└── Turbo.Kit/           文档文本提取类库
+└── RelaxKon.Kit/           文档文本提取类库
 tests/
-└── Turbo.Auth.Tests/    单元测试
+└── RelaxKon.Auth.Tests/    单元测试
 docs/                    架构、接口、部署和开发文档
 ```
 

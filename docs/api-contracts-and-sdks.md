@@ -19,7 +19,7 @@
 
 ## Controller 边界
 
-新增 `src/Turbo.Auth/Contracts/`，按 Auth、Catalog、Chat、Media、Sync、Files、FeatureAccess 和 Common 分组。请求、响应与 EF 实体、供应商 SDK 模型分离，返回数据的端点使用 `ActionResult<T>`；流式、空响应和文件代理保留相应 HTTP 类型。
+新增 `src/RelaxKon.Auth/Contracts/`，按 Auth、Catalog、Chat、Media、Sync、Files、FeatureAccess 和 Common 分组。请求、响应与 EF 实体、供应商 SDK 模型分离，返回数据的端点使用 `ActionResult<T>`；流式、空响应和文件代理保留相应 HTTP 类型。
 
 - 认证请求增加必填、长度、邮箱和确认密码验证；登录允许已有密码长度，创建账户和修改密码保留各自规则。账户响应不包含密码或 EF 角色导航关系。
 - 管理接口只映射允许修改的字段。更新使用路由 ID，拒绝非零且不一致的请求体 ID；创建模型、密钥和账户拒绝指定已有 ID。密钥关联只接收 modelId、启用状态、费用、别名和优先级，不绑定客户端嵌套的 Model / SupplierKey 图。管理密钥响应仍返回 apiKey，权限仍为 admin。
@@ -54,10 +54,10 @@ OpenAI 2.14.0 稳定包仍将 developer 和部分 GPT Image 选项标记为 expe
 复现常规验证：
 
 ```powershell
-dotnet restore Turbo.AI.Server.sln
-dotnet build Turbo.AI.Server.sln --configuration Release --no-restore
-dotnet test tests/Turbo.Auth.Tests/Turbo.Auth.Tests.csproj --configuration Release --no-build --results-directory ./TestResults
-dotnet list Turbo.AI.Server.sln package --vulnerable --include-transitive
+dotnet restore RelaxKon.AI.Server.sln
+dotnet build RelaxKon.AI.Server.sln --configuration Release --no-restore
+dotnet test tests/RelaxKon.Auth.Tests/RelaxKon.Auth.Tests.csproj --configuration Release --no-build --results-directory ./TestResults
+dotnet list RelaxKon.AI.Server.sln package --vulnerable --include-transitive
 ```
 
 本次不涉及数据库结构修改。独立测试库的并发、触发器和升级脚本回归另见 [MySQL 验证](mysql-verification.md)。本地连接配置继续忽略，不写入文档。

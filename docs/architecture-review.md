@@ -37,7 +37,7 @@
 ## 升级与回滚边界
 
 1. 停止写入并备份现有数据库。检查 `(UserId, DataId)` 的历史重复项与 `(ChatHistoryId, DataId)` 的消息重复项，由维护者明确处理，脚本不自动合并或删除。
-2. 已有数据库只运行服务端 `src/Turbo.Auth/Resources/merge/architecture-upgrade.sql` 一次；全新数据库使用更新后的 `merge/init.sql`。DDL 需要创建触发器的权限，MySQL DDL 不能事务回滚；中断时先检查已执行的语句。
+2. 已有数据库只运行服务端 `src/RelaxKon.Auth/Resources/merge/architecture-upgrade.sql` 一次；全新数据库使用更新后的 `merge/init.sql`。DDL 需要创建触发器的权限，MySQL DDL 不能事务回滚；中断时先检查已执行的语句。
 3. 先部署新后端，再部署新前端并刷新 PWA 资源。新前端不接受旧后端的无完成标记文本流。应用启动会加载路由版本；缺少迁移表时启动失败，不会静默忽略。
 4. 浏览器 v4 在升级事务内复制旧会话/消息/标题，保留原存储；队列与同步游标保存在 IndexedDB。不要通过清空站点数据“修复”仍有待同步操作的浏览器。
 5. 新后端必须保留为所有写入生成变更日志。直接回退到不生成日志的旧后端会破坏已发出的游标语义；应用回滚需要同时制定客户端游标重置与数据库恢复方案。
@@ -53,7 +53,7 @@ SQLite 用于本地关系数据库事务测试，浏览器使用真实 IndexedDB
 - 前端：`npm test -- --watch=false --browsers=ChromeHeadless`，55 项通过。
 - 多语言：`npm run test:i18n`，6 项通过。
 - 前端生产构建：`npm run build` 通过；首包 2.56 MB，低于现有 5 MB 警告预算；仍有现有 Mermaid 传递依赖的 CommonJS 和 Browserslist 提示。
-- 后端：`dotnet test Turbo.AI.Server.sln --configuration Release --no-restore`，99 项普通测试通过；显式 MySQL 测试未运行。
+- 后端：`dotnet test RelaxKon.AI.Server.sln --configuration Release --no-restore`，99 项普通测试通过；显式 MySQL 测试未运行。
 - 两个仓库的 `git diff --check` 通过。未对既有业务数据库执行迁移或部署；提交与推送记录以 Git 为准。
 
 ### 后续 MySQL 验证
