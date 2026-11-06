@@ -1,6 +1,8 @@
-# Turbo AI Server
+# RelaxKon Server
 
-`Turbo AI Server` 是面向 AI 应用的 ASP.NET Core 后端。它提供账户与角色鉴权、供应商密钥和模型管理、流式聊天、媒体生成，以及聊天记录同步 API。
+`RelaxKon Server`（原 `Turbo AI Server`）是面向 AI 应用的 ASP.NET Core 后端。它提供账户与角色鉴权、供应商密钥和模型管理、流式聊天、媒体生成，以及聊天记录同步 API。
+
+仓库迁移目标为 [`nanaminato/relaxkon-server`](https://github.com/nanaminato/relaxkon-server)，前端为 [`relaxkon-web`](https://github.com/nanaminato/relaxkon-web)。本次只变更仓库和展示名称，保留既有程序集、认证、数据库与 API 兼容标识；见 [渐进式迁移说明](docs/relaxkon-migration.md)。
 
 ## 文档
 

@@ -10,6 +10,21 @@ namespace Turbo.Auth.Tests;
 
 public class LocalizationTests
 {
+    [TestCase("en")]
+    [TestCase("ja")]
+    [TestCase("zh")]
+    public void Account_email_subjects_use_relaxkon_display_brand(string language)
+    {
+        var previous = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(language);
+            Assert.That(ApiMessages.Get("reset_email_subject"), Does.Contain("RelaxKon").And.Not.Contain("Turbo AI"));
+            Assert.That(ApiMessages.Get("registration_email_subject"), Does.Contain("RelaxKon").And.Not.Contain("Turbo AI"));
+        }
+        finally { CultureInfo.CurrentUICulture = previous; }
+    }
+
     [TestCase("en-US", "en", "Internal server error")]
     [TestCase("ja-JP", "ja", "サーバー内部エラー")]
     [TestCase("zh-CN", "zh", "服务器内部错误")]

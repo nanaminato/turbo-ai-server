@@ -91,7 +91,7 @@ ASPNETCORE_ENVIRONMENT=Production dotnet ./publish/Turbo.Auth.dll
 
 ## 部署前端
 
-用户端与管理端已合并为单一 Angular 应用：[turbo-user](https://github.com/nanaminato/turbo-user)。生产构建使用环境文件中的同源 API 地址 `/`：
+用户端与管理端已合并为单一 Angular 应用：[relaxkon-web](https://github.com/nanaminato/relaxkon-web)。生产构建使用环境文件中的同源 API 地址 `/`：
 
 ```bash
 npm ci

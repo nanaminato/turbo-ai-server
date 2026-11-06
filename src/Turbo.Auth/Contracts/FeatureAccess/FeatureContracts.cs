@@ -25,3 +25,19 @@ public sealed record EffectiveFeatureResponse(string Key, bool Enabled, int? Req
         feature.RequestsPerMinute, feature.RequestsPerDay, feature.MaxConcurrent);
 }
 public sealed record FeatureAccessResponse(bool CanManagePolicies, IReadOnlyList<EffectiveFeatureResponse> Features);
+
+public sealed record FeatureUsageItemResponse(string Key, bool Enabled,
+    int? RequestsPerMinute, int? RequestsPerDay, int? MaxConcurrent,
+    long MinuteUsed, long DayUsed, long ActiveRequests,
+    long? MinuteRemaining, long? DayRemaining, long? ConcurrentRemaining,
+    DateTimeOffset MinuteResetsAt, DateTimeOffset DayResetsAt);
+public sealed record FeatureUsageResponse(DateTimeOffset ObservedAt, long PolicyRevision,
+    IReadOnlyList<FeatureUsageItemResponse> Features)
+{
+    public static FeatureUsageResponse From(FeatureUsageSnapshot snapshot) => new(snapshot.ObservedAt,
+        snapshot.PolicyRevision, snapshot.Features.Select(feature => new FeatureUsageItemResponse(
+            feature.Policy.Key, feature.Policy.Enabled, feature.Policy.RequestsPerMinute,
+            feature.Policy.RequestsPerDay, feature.Policy.MaxConcurrent, feature.MinuteUsed,
+            feature.DayUsed, feature.ActiveRequests, feature.MinuteRemaining, feature.DayRemaining,
+            feature.ConcurrentRemaining, snapshot.MinuteResetsAt, snapshot.DayResetsAt)).ToList());
+}

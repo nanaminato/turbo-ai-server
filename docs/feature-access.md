@@ -5,13 +5,26 @@
 权限由 MySQL `FeatureAccessPolicies` 单行 JSON 配置持久化，不从前端或 JWT 中的历史角色决定。每次认证会重新查询账户当前角色并替换 JWT 角色声明；功能准入也查询当前角色。管理员只有策略管理权，没有 AI 功能或配额豁免。
 
 - `GET /api/feature-access/me`：当前账户的 `canManagePolicies` 与 `features` 有效策略。
+- `GET /api/feature-access/usage`：当前账户的只读用量快照，见下文；不接收其他账户 ID。
 - `GET /api/feature-access/policies`：管理员读取 `{revision,features}`。
 - `PUT /api/feature-access/policies`：管理员提交完整文档，携带读到的 revision。成功返回 revision+1；并发编辑返回 HTTP 409，必须重新读取并人工合并。
-- 每个 feature 为 `{key,roles:{"user":{enabled,requestsPerMinute,requestsPerDay,maxConcurrent}}}`。角色名称必须存在于 Roles，大小写精确匹配。普通用户对应既有 `user`，管理员 `admin`，VIP `vip`；可以配置其他现有角色。
+- 每个 feature 为 `{key,roles:{"user":{enabled,requestsPerMinute,requestsPerDay,maxConcurrent}}}`。角色键必须是 Roles 中已有的不可变 Code，大小写精确匹配，不是可修改的显示名称。普通用户对应既有 `user`，管理员 `admin`，VIP `vip`；可以配置其他现有角色。
 - 限制为正整数，`null` 为无限制；`enabled:false` 为禁用。零/负数拒绝。缺少角色配置意味着不授权。
 - 多角色取已启用授权的并集，各项限制取最宽松值（任一 null 则无限制）。禁用条目不覆盖其他角色的允许。角色身份必须由管理员管理；注册接口不接受客户端自授角色。
 
 功能 key：`chat`、`image`（所有 OpenAI/APIMart 生图入口共享）、`tts`、`transcription`、`translation`、`file-extraction`、`image-task`、`image-proxy`。模型枚举是认证读取；公开模型目录保持公开。聊天历史同步保持既有身份/所有权规则；身份验证、密码重置与控制平面保留现有独立认证/速率策略，不通过 AI 策略授予管理员权限。新增收费/计算功能必须添加 key、端点元数据和测试。
+
+## 只读用量快照
+
+`GET /api/feature-access/usage` 返回 `{observedAt,policyRevision,features}`，时间为 UTC ISO 8601。每项包含原有效策略字段 `key/enabled/requestsPerMinute/requestsPerDay/maxConcurrent`，以及 `minuteUsed/dayUsed/activeRequests`、`minuteRemaining/dayRemaining/concurrentRemaining`、`minuteResetsAt/dayResetsAt`。
+
+- 账户 ID 只取认证身份，不接受查询其他账户。响应 `Cache-Control: no-store`，不包含其他账户、提示词、任务 ID、供应商密钥或租约 ID。
+- 所有角色、策略、计数和租约来自同一 MySQL `REPEATABLE READ` 快照，观察时间来自数据库时钟。失效窗口按 0 显示，过期租约不计入 `activeRequests`；查询不删除租约、不消耗配额、不重置计数。
+- 启用且不限额时 remaining 为 `null`；禁用时为 0。降低限额后已用量仍保留，剩余量下限为 0。没有使用记录的功能返回 0 已用量，但缺表或存储失败返回 503 `feature_access_unavailable`，不能伪造为“未使用”。
+- 快照是观察值，不是容量预留。其他会话/实例可能立即消费配额，实际请求仍可能返回 429。页面应显示更新时间，不把 `activeRequests` 当成供应商远端运行任务数。此端点不需另行授权 AI 功能，管理员也只能看自己的用量。
+- 请求单位仍是一项 HTTP 操作，不是 token、图片数量或费用。图像任务查询各消耗一次 `image-task` 配额；收到 429 应等待 `Retry-After`，不能重新提交生成任务。低日查询配额可能使任务状态查询暂停至 UTC 次日，但不会删除已提交的任务。
+
+新端点不改变现有 `/me` 或 `/policies` 响应，不需要 SQL 升级。普通测试覆盖窗口投影、剩余量、身份隔离与失败响应；显式 `FeatureUsageDatabaseTests` 覆盖真实 MySQL 读取、当前角色和策略、过期租约及无写入，需独立测试库运行。
 
 ## 计数与多实例
 
@@ -45,4 +58,4 @@ dotnet test tests/Turbo.Auth.Tests/Turbo.Auth.Tests.csproj --filter FullyQualifi
 ```
 
 数据库测试覆盖两个独立 Store 的 20 路同时请求、日/分钟计数、租约续期/释放/过期、策略 revision 冲突、任务所有权。
-本次开发环境普通测试通过；MySQL 8.4.7 官方本地运行包已初始化，但运行环境拒绝服务器 Unix socket（Operation not permitted），显式集成测试无法连接而失败，**数据库并发行为尚未实测通过**。上线前须在允许运行 MySQL 的环境执行上述集成测试及 HTTP 端到端验收。
+早期功能策略实现时，普通测试通过；当时 MySQL 8.4.7 官方本地运行包已初始化，但运行环境拒绝服务器 Unix socket（Operation not permitted），显式配额集成测试无法连接而失败，**该次数据库配额并发验证未通过**。其他数据库功能的后续验证见各功能文档；本轮改名与用量查询验证见 [迁移说明](relaxkon-migration.md)。上线前仍须在允许运行 MySQL 的隔离环境执行上述配额集成测试及 HTTP 端到端验收。
