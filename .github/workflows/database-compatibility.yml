@@ -1,0 +1,57 @@
+name: Database compatibility
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sqlite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore
+      - run: dotnet test Turbo.AI.Server.sln -c Release --no-restore
+  mysql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: isolated-ci-only
+          MYSQL_ROOT_HOST: '%'
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -p'isolated-ci-only'"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    env:
+      TURBO_TEST_MYSQL: Server=127.0.0.1;Port=3306;User ID=root;Password=isolated-ci-only;Allow User Variables=True;SSL Mode=Disabled
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore
+      - run: dotnet build Turbo.AI.Server.sln -c Release --no-restore
+      - name: Run each explicit MySQL suite in isolated temporary databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          for suite in ArchitectureDatabaseTests FeatureAccessDatabaseTests FeatureUsageDatabaseTests APIMartTaskReceiptDatabaseTests RegistrationDatabaseTests PasswordResetDatabaseTests RoleSafetyTests RuntimeQueryTests PerformanceIndexDatabaseTests RoutingWeightDatabaseTests; do
+            dotnet test tests/Turbo.Auth.Tests/Turbo.Auth.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~$suite" --logger "trx;LogFileName=$suite.trx" --results-directory TestResults/mysql
+          done
+      - name: Ensure all 35 explicit MySQL cases executed successfully
+        run: |
+          python3 - <<'PY'
+          import pathlib, xml.etree.ElementTree as ET
+          results = []
+          for path in pathlib.Path('TestResults/mysql').glob('*.trx'):
+              results += ET.parse(path).findall('.//{*}UnitTestResult')
+          assert len(results) >= 35, f'Expected at least 35 test results, got {len(results)}'
+          assert all(row.attrib['outcome'] == 'Passed' for row in results), 'Failed/skipped database test'
+          PY

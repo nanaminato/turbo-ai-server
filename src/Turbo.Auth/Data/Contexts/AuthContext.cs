@@ -24,13 +24,12 @@ public partial class AuthContext : DbContext
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         // Console.WriteLine("CONNECT "+_configuration.GetConnectionString("ciko"));
-        if (!optionsBuilder.IsConfigured) optionsBuilder.UseMySql(_configuration.GetConnectionString("ciko"), ServerVersion.Parse("8.4.6-mysql"));
+        if (!optionsBuilder.IsConfigured) DatabaseProvider.FromConfiguration(_configuration).Configure(optionsBuilder);
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder
-            .UseCollation("utf8mb4_0900_ai_ci")
-            .HasCharSet("utf8mb4");
+        if (Database.IsMySql())
+            modelBuilder.UseCollation("utf8mb4_0900_ai_ci").HasCharSet("utf8mb4");
 
         modelBuilder.Entity<SyncAccount>(entity =>
         {
@@ -78,6 +77,14 @@ public partial class AuthContext : DbContext
         modelBuilder.Entity<ChatMessage>().ToTable("ChatMessages");
         modelBuilder.Entity<FileAdds>().ToTable("FileAdds");
         ConfigureRuntimeModel(modelBuilder);
+        if (Database.IsSqlite())
+        {
+            // SQLite NOCASE is ASCII-only, not MySQL Unicode/accent collation.
+            modelBuilder.Entity<Account>().Property(item => item.Username).UseCollation("NOCASE");
+            modelBuilder.Entity<Account>().Property(item => item.Email).UseCollation("NOCASE");
+            modelBuilder.Entity<Role>().Property(item => item.Name).UseCollation("NOCASE");
+            modelBuilder.Entity<Role>().Property(item => item.Code).UseCollation("BINARY");
+        }
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);

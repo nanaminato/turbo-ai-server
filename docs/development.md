@@ -1,5 +1,7 @@
 # 开发与测试
 
+数据库选择与 SQLite 无 MySQL 部署见 [数据库 provider](database-providers.md)。以下手动导入脚本步骤适用于 MySQL；SQLite 使用显式 `--init-db`。
+
 ## 本地开发
 
 1. 安装 `global.json` 指定的 .NET SDK。

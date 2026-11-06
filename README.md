@@ -8,6 +8,7 @@
 
 - [注册邮箱验证](docs/registration-email-verification.md)：验证码流程、SMTP 配置及数据库迁移。
 - [启动修复记录](docs/startup-repair.md)：缺少架构迁移时的诊断、修复和验证。
+- [MySQL / SQLite 配置](docs/database-providers.md)：不安装 MySQL 的 SQLite 部署、初始化、并发与迁移边界。
 - [部署与配置](docs/deployment.md)：本地启动、生产配置和前端部署。
 - [MySQL 验证记录](docs/mysql-verification.md)：并发同步、路由触发器、旧库升级与发现的修复。
 - [架构审查与实施记录](docs/architecture-review.md)：逐项优化、协议升级与验证限制。
@@ -21,7 +22,7 @@
 
 ## 快速启动
 
-先准备 .NET SDK 10、MySQL 8.4+，并创建本地配置：
+先准备 .NET SDK 10。数据库可选 MySQL 8.4+ 或 SQLite；不配置 provider 时保持 MySQL。无需安装 MySQL 的部署见 [SQLite 首次部署](docs/database-providers.md#sqlite-首次部署无需-mysql)。以下保留 MySQL 开发流程，并创建本地配置：
 
 ```bash
 cp src/Turbo.Auth/appsettings.example.json src/Turbo.Auth/appsettings.Development.json

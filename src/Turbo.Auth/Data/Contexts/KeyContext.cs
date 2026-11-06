@@ -19,13 +19,12 @@ public partial class KeyContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        if (!optionsBuilder.IsConfigured) optionsBuilder.UseMySql(_configuration.GetConnectionString("ciko"), ServerVersion.Parse("8.4.6-mysql"));
+        if (!optionsBuilder.IsConfigured) DatabaseProvider.FromConfiguration(_configuration).Configure(optionsBuilder);
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder
-            .UseCollation("utf8mb4_0900_ai_ci")
-            .HasCharSet("utf8mb4");
+        if (Database.IsMySql())
+            modelBuilder.UseCollation("utf8mb4_0900_ai_ci").HasCharSet("utf8mb4");
 
         OnModelCreatingPartial(modelBuilder);
         modelBuilder.Entity<SupplierKey>().ToTable("SupplierKeys");
