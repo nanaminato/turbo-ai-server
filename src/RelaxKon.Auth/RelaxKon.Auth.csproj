@@ -1,0 +1,87 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>RelaxKon.Auth</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="Resources/merge/init.sql" LogicalName="RelaxKon.Auth.Bootstrap.Schema.sql" />
+        <EmbeddedResource Include="Resources/merge/open-initdata.sql" LogicalName="RelaxKon.Auth.Bootstrap.Seed.sql" />
+    </ItemGroup>
+
+    <ItemGroup>
+        
+        <PackageReference Include="OpenAI" Version="2.14.0" />
+        
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.11" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.11" />
+        <PackageReference Include="Microting.EntityFrameworkCore.MySql" Version="10.0.11" />
+        <PackageReference Include="MailKit" Version="4.18.2" />
+        <PackageReference Include="MySqlConnector" Version="2.6.2" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+        <PackageReference Include="Swashbuckle.AspNetCore.Newtonsoft" Version="10.2.3" />
+        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.22.0" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+        
+        <PackageReference Include="Anthropic" Version="13.4.0" />
+        <PackageReference Include="Google.GenAI" Version="1.28.0" />
+        
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="wwwroot\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <_ContentIncludedByDefault Remove="Views\Shared\Error.cshtml" />
+      <_ContentIncludedByDefault Remove="Views\Shared\_Layout.cshtml" />
+      <_ContentIncludedByDefault Remove="Views\Shared\_ValidationScriptsPartial.cshtml" />
+      <_ContentIncludedByDefault Remove="wwwroot\css\site.css" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\RelaxKon.Kit\RelaxKon.Kit.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="Entities\**" />
+      <Compile Remove="Controllers\AI\VideoController.cs" />
+      <Compile Remove="Models\AI\Image\Response\Lcm\**" />
+      <Compile Remove="Models\AI\Image\Response\NovitaTask\**" />
+      <Compile Remove="Models\AI\Image\MetaData.cs" />
+      <Compile Remove="Models\AI\Image\Novita.cs" />
+      <Compile Remove="Controllers\AI\APIMart\Models\Response\APIMartTask\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Remove="Entities\**" />
+      <EmbeddedResource Remove="Models\AI\Image\Response\Lcm\**" />
+      <EmbeddedResource Remove="Models\AI\Image\Response\NovitaTask\**" />
+      <EmbeddedResource Remove="Controllers\AI\APIMart\Models\Response\APIMartTask\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Remove="Entities\**" />
+      <Content Remove="Models\AI\Image\Response\Lcm\**" />
+      <Content Remove="Models\AI\Image\Response\NovitaTask\**" />
+      <Content Remove="Controllers\AI\APIMart\Models\Response\APIMartTask\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="Entities\**" />
+      <None Remove="Models\AI\Image\Response\Lcm\**" />
+      <None Remove="Models\AI\Image\Response\NovitaTask\**" />
+      <None Remove="Controllers\AI\APIMart\Models\Response\APIMartTask\**" />
+    </ItemGroup>
+
+</Project>

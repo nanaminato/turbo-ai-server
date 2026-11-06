@@ -3,14 +3,14 @@
 ## 本地开发
 
 1. 安装 `global.json` 指定的 .NET SDK。
-2. 从 `src/Turbo.Auth/appsettings.example.json` 创建 `appsettings.Development.json`，并填写本地 MySQL、JWT 和 CORS 配置。
+2. 从 `src/RelaxKon.Auth/appsettings.example.json` 创建 `appsettings.Development.json`，并填写本地 MySQL、JWT 和 CORS 配置。
 3. 导入 `merge/init.sql`、`merge/open-initdata.sql`，填写并导入 `account/create-admin.sql` 的真实用户名和邮箱。配置邮件服务后，从登录页申请邮件设置初始密码；具体见部署文档。
 4. 恢复、构建并启动：
 
 ```bash
 dotnet restore
-dotnet build Turbo.AI.Server.sln --configuration Release --no-restore
-dotnet run --project src/Turbo.Auth/Turbo.Auth.csproj --launch-profile http
+dotnet build RelaxKon.AI.Server.sln --configuration Release --no-restore
+dotnet run --project src/RelaxKon.Auth/RelaxKon.Auth.csproj --launch-profile http
 ```
 
 开发环境会启用 Swagger，可在服务监听地址的 `/swagger` 检查接口定义。
@@ -18,10 +18,10 @@ dotnet run --project src/Turbo.Auth/Turbo.Auth.csproj --launch-profile http
 ## 自动化测试
 
 ```bash
-dotnet test Turbo.AI.Server.sln --configuration Release --nologo
+dotnet test RelaxKon.AI.Server.sln --configuration Release --nologo
 ```
 
-测试项目是 `Turbo.Auth.Tests`，覆盖文档提取、账户密码处理，以及模型路由的快照发布、供应商模型映射、优先级与熔断逻辑。测试应使用临时文件与本地 fixture，不能依赖开发者机器中的绝对路径、真实数据库或供应商密钥。
+测试项目是 `RelaxKon.Auth.Tests`，覆盖文档提取、账户密码处理，以及模型路由的快照发布、供应商模型映射、优先级与熔断逻辑。测试应使用临时文件与本地 fixture，不能依赖开发者机器中的绝对路径、真实数据库或供应商密钥。
 
 ## 前端联调
 
@@ -54,7 +54,7 @@ dotnet test Turbo.AI.Server.sln --configuration Release --nologo
 MySQL 并发、触发器及旧库升级需要单独运行显式集成用例。配置进程环境变量 `TURBO_TEST_MYSQL` 为专用测试连接，运行：
 
 ```bash
-dotnet test tests/Turbo.Auth.Tests/Turbo.Auth.Tests.csproj --configuration Release --filter FullyQualifiedName~ArchitectureDatabaseTests
+dotnet test tests/RelaxKon.Auth.Tests/RelaxKon.Auth.Tests.csproj --configuration Release --filter FullyQualifiedName~ArchitectureDatabaseTests
 ```
 
 也可传入被 Git 忽略的 `--settings tests/mysql.runsettings.user`，其中提供测试环境变量。使用单独类过滤器，确认结果显示全部 10 项执行，避免普通/显式测试的混合 OR 过滤器忽略显式用例。

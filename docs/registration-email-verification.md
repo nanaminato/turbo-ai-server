@@ -33,7 +33,7 @@
 已有库停止服务并核对备份后执行一次：
 
 ```text
-src/Turbo.Auth/Resources/merge/registration-email-verification.sql
+src/RelaxKon.Auth/Resources/merge/registration-email-verification.sql
 ```
 
 脚本只创建 RegistrationEmailChallenges，不修改原有账户。不要在已有库重跑 init.sql。新库的 merge/init.sql 已包含这张表；旧版本库先按部署文档完成 architecture-upgrade.sql，再执行邮箱验证迁移。配置了注册 SMTP 的实例在启动前只读检查挑战表，缺少时给出明确迁移路径，不自动执行 DDL。

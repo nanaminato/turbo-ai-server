@@ -24,14 +24,14 @@
 先准备 .NET SDK 10、MySQL 8.4+，并创建本地配置：
 
 ```bash
-cp src/Turbo.Auth/appsettings.example.json src/Turbo.Auth/appsettings.Development.json
+cp src/RelaxKon.Auth/appsettings.example.json src/RelaxKon.Auth/appsettings.Development.json
 ```
 
 编辑 `appsettings.Development.json` 中的 `ConnectionStrings:ciko`、JWT 和 `Cors:AllowedOrigins`。随后初始化数据库并启动服务：
 
 ```bash
 dotnet restore
-dotnet run --project src/Turbo.Auth/Turbo.Auth.csproj --launch-profile http
+dotnet run --project src/RelaxKon.Auth/RelaxKon.Auth.csproj --launch-profile http
 ```
 
 使用 `http` 启动配置进行本地开发时，服务监听 `http://localhost:5111`；开发环境可通过 `/swagger` 查看由控制器生成的接口定义。示例 Kestrel 配置在未使用启动配置的部署场景监听 `http://0.0.0.0:6000`。

@@ -31,10 +31,10 @@
 已有本地测试配置时运行：
 
 ```powershell
-dotnet test tests/Turbo.Auth.Tests/Turbo.Auth.Tests.csproj --configuration Release --no-restore --settings tests/mysql.runsettings.user --filter FullyQualifiedName~ArchitectureDatabaseTests --logger 'trx;LogFileName=architecture-mysql.trx' --results-directory TestResults/architecture-mysql
+dotnet test tests/RelaxKon.Auth.Tests/RelaxKon.Auth.Tests.csproj --configuration Release --no-restore --settings tests/mysql.runsettings.user --filter FullyQualifiedName~ArchitectureDatabaseTests --logger 'trx;LogFileName=architecture-mysql.trx' --results-directory TestResults/architecture-mysql
 ```
 
-也可通过进程环境变量 `TURBO_TEST_MYSQL` 提供专用连接并省略 `--settings`。测试账户需要建库、删库、建表、索引及触发器权限。SQL 资源随测试程序集嵌入，不依赖运行目录；旧库基线位于 `tests/Turbo.Auth.Tests/Fixtures/pre-architecture-e01436d.sql`，升级资源直接引用实际部署脚本。
+也可通过进程环境变量 `TURBO_TEST_MYSQL` 提供专用连接并省略 `--settings`。测试账户需要建库、删库、建表、索引及触发器权限。SQL 资源随测试程序集嵌入，不依赖运行目录；旧库基线位于 `tests/RelaxKon.Auth.Tests/Fixtures/pre-architecture-e01436d.sql`，升级资源直接引用实际部署脚本。
 
 NUnit 的显式测试使用独立的类过滤器运行；混合普通测试与显式测试的 OR 过滤器可能让 NUnit 不执行显式用例，必须确认结果显示 10 项已执行。普通完整回归不会自动运行这些真实 MySQL 用例。
 

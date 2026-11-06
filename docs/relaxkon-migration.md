@@ -6,7 +6,7 @@
 
 ## 必须保留的兼容标识
 
-- `Turbo.AI.Server.sln`、`src/Turbo.Auth`、`src/Turbo.Kit`、测试项目、命名空间、嵌入资源名及 `Turbo.Auth.dll` 保留，既有构建和服务启动命令不变。
+- 后续项目迁移将解决方案、项目目录、命名空间、嵌入资源名和程序集切换到 `RelaxKon.*`。构建入口为 `RelaxKon.AI.Server.sln`，部署入口为 `RelaxKon.Auth.dll`。
 - `ConnectionStrings:ciko`、已有数据库名称、表、主键、账户、角色编码、聊天历史与任务记录保留。本次改名无需 SQL，不运行 `init.sql`、`--init-db`、`--create-admin` 或已有一次性升级脚本。
 - 保留部署中现有 JWT issuer、audience、SecretKey、RefreshTokenPepper、会话与缓存前缀。示例中的 `turbo-ai-server` 和 `turbo-ai-client` 是认证协议标识，不是遗漏的品牌文本。不能因仓库改名替换，否则旧 token 无法验证。
 - 保留 Data Protection 应用名 `Turbo.Auth`、密钥环及 `DataProtection:KeyPath`。密码重置、注册验证码和任务恢复回执依赖该身份；只改目录名或重建密钥会破坏未到期凭据。
@@ -42,7 +42,7 @@
 
 ## 本轮验证（2026-11-06）
 
-- .NET SDK 10.0.403 完成依赖恢复、Release 构建及 publish；发布产物仍包含 `Turbo.Auth.dll`。编译有 11 项既有 nullable/未使用变量警告，无错误。
+- .NET SDK 10.0.403 完成依赖恢复、Release 构建及 publish；当时的发布产物仍包含 `Turbo.Auth.dll`。编译有 11 项既有 nullable/未使用变量警告，无错误。
 - 普通测试 265 项通过，包含本地 Kestrel HTTP 契约、旧聊天流协议、新用量 camelCase/nullable JSON、身份隔离、存储失败、UTC 窗口、角色合并和新展示名称。
 - 35 项显式 MySQL 用例未执行，其中包含本轮新增 2 项用量快照测试。没有连接或修改业务库、调用真实供应商、合并 PR 或生产部署。现有账户登录/刷新、真实 MySQL 多实例并发和生产前后端联通仍需在获准的测试/部署环境验收。
 - 本轮新增只读端点及 CORS `Retry-After` 可见性，不改变既有计数单位或准入算法。仓库改名验证与代码测试分开记录，不能以构建通过代替仓库设置变更成功。

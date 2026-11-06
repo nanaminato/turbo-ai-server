@@ -36,7 +36,7 @@ HTTP 429 返回 `code:feature_limit_exceeded` 和 `Retry-After`（秒）。HTTP 
 
 ## 部署与迁移
 
-1. 备份数据库，先执行 `src/Turbo.Auth/Resources/merge/feature-access.sql`；新安装 `--init-db` 的嵌入式 schema 已包含这些表。不要在生产环境调用测试初始化。
+1. 备份数据库，先执行 `src/RelaxKon.Auth/Resources/merge/feature-access.sql`；新安装 `--init-db` 的嵌入式 schema 已包含这些表。不要在生产环境调用测试初始化。
 2. 所有副本必须共享同一 MySQL 主库；不能将限流读写路由至异步只读副本。
 3. **默认没有功能授权：升级后所有受管功能拒绝，包含管理员。** 使用已有管理员账户打开前端策略页面，明确保存各角色开关、分钟/每日请求数及并发限制后再开放流量。没有自动把原来的 VIP 策略转换成无限权限。
 4. 图片代理改为 Bearer 认证请求。前端使用认证 blob 请求后创建对象 URL。设置 `ImageProxy:AllowedHosts` 为供应商实际图片 CDN 的精确主机名，不支持通配符；默认空名单拒绝。仅允许 HTTPS/443、公共地址，连接时解析并固定 IP，禁止重定向和环境代理，限制为 20 MiB raster image、30 秒。
@@ -51,10 +51,10 @@ HTTP 429 返回 `code:feature_limit_exceeded` 和 `Retry-After`（秒）。HTTP 
 普通测试包括角色合并、默认拒绝、非法配置、计算入口元数据覆盖、图片代理内网/特殊 IP 检查。
 
 ```bash
-dotnet test tests/Turbo.Auth.Tests/Turbo.Auth.Tests.csproj --configuration Release
+dotnet test tests/RelaxKon.Auth.Tests/RelaxKon.Auth.Tests.csproj --configuration Release
 # 仅使用隔离测试 MySQL，连接需有创建/删除临时库权限；测试不会使用连接中的数据库。
 # 通过安全环境变量设置 TURBO_TEST_MYSQL 后：
-dotnet test tests/Turbo.Auth.Tests/Turbo.Auth.Tests.csproj --filter FullyQualifiedName~Distributed_admission_policy_conflicts_and_ownership_are_atomic
+dotnet test tests/RelaxKon.Auth.Tests/RelaxKon.Auth.Tests.csproj --filter FullyQualifiedName~Distributed_admission_policy_conflicts_and_ownership_are_atomic
 ```
 
 数据库测试覆盖两个独立 Store 的 20 路同时请求、日/分钟计数、租约续期/释放/过期、策略 revision 冲突、任务所有权。

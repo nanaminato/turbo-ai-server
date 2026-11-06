@@ -80,7 +80,7 @@ data: {"type":"completed","text":null,"code":null}
 ## 其他接口
 
 - `POST /api/media/tts`、`/whisper-translate`、`/whisper-transcription`、`/dall-e`、`/gpt-image`：OpenAI-compatible 媒体能力（分别检查对应功能策略）。
-- `POST /api/fileextractor`：提取 TXT、DOCX、PDF 内容。
+- `POST /api/fileextractor`：提取 PDF、DOCX、TXT、Markdown、CSV、TSV、JSON 和日志文件中的文本。单文件最多 10 MiB。无可提取文本或文件损坏时返回 400，格式不受支持时返回 415。
 - `/api/sync/data`：版本化聊天历史、消息与任务同步。`/api/request` 和 `/api/receiver` 保留旧客户端入口，写入也生成变更日志。
 - `GET /api/open/model`：获取公开模型列表。
 
