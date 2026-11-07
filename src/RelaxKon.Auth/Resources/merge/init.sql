@@ -247,6 +247,18 @@ CREATE TABLE IF NOT EXISTS FeatureAccessLeases (
     INDEX IX_FeatureLease (AccountId, FeatureKey, ExpiresAt)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS FeatureAccessConcurrencyLocks (
+    Bucket SMALLINT UNSIGNED NOT NULL PRIMARY KEY
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS FeatureAccessLeaseSources (
+    LeaseId CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+    SourceKey BINARY(32) NOT NULL,
+    INDEX IX_FeatureLeaseSource (SourceKey),
+    CONSTRAINT FK_FeatureLeaseSource_Lease FOREIGN KEY (LeaseId)
+        REFERENCES FeatureAccessLeases (LeaseId) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS FeatureAccessTasks (
     TaskId VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
     AccountId INT NOT NULL,

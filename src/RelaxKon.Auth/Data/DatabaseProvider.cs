@@ -72,13 +72,14 @@ public sealed class DatabaseProvider
         return command;
     }
 
-    public async Task<DbTransaction> BeginWrite(DbConnection connection, CancellationToken token)
+    public async Task<DbTransaction> BeginWrite(DbConnection connection, CancellationToken token,
+        IsolationLevel isolationLevel = IsolationLevel.Unspecified)
     {
         token.ThrowIfCancellationRequested();
         // IMMEDIATE reserves SQLite's single writer before any policy/counter/identity read.
         // This lock belongs to the database, not to this process. BUSY/timeout fails closed.
         if (connection is SqliteConnection sqlite) return sqlite.BeginTransaction(deferred: false);
-        return await connection.BeginTransactionAsync(token);
+        return await connection.BeginTransactionAsync(isolationLevel, token);
     }
 
     public async Task<DbTransaction> BeginRead(DbConnection connection, CancellationToken token)

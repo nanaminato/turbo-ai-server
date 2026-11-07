@@ -1,5 +1,7 @@
+using System.Net;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
+using OptionsFactory = Microsoft.Extensions.Options.Options;
 using RelaxKon.Auth.Security.FeatureAccess;
 
 namespace RelaxKon.Auth.Tests;
@@ -40,6 +42,8 @@ public class SqliteFeatureAccessTests
                     DayWindow INTEGER NOT NULL DEFAULT 0, MinuteCount INTEGER NOT NULL DEFAULT 0, DayCount INTEGER NOT NULL DEFAULT 0,
                     PRIMARY KEY(AccountId,FeatureKey));
                 CREATE TABLE FeatureAccessLeases(LeaseId TEXT PRIMARY KEY, AccountId INTEGER, FeatureKey TEXT, ExpiresAt TEXT NOT NULL);
+                CREATE TABLE FeatureAccessLeaseSources(LeaseId TEXT PRIMARY KEY REFERENCES FeatureAccessLeases ON DELETE CASCADE,
+                    SourceKey BLOB NOT NULL);
                 CREATE TABLE FeatureAccessTasks(TaskId TEXT PRIMARY KEY, AccountId INTEGER, SupplierKeyId INTEGER);
                 INSERT INTO Roles VALUES(1,'admin','Admin'),(2,'user','User'),(3,'vip','VIP');
                 INSERT INTO AccountRoles VALUES(1,2),(2,1);
@@ -68,6 +72,55 @@ public class SqliteFeatureAccessTests
             stores[i % stores.Length].Acquire(2, new("image", true, null, 5, null), default))));
         Assert.That(daily.Count(x => x.LeaseId != null), Is.EqualTo(5));
         Assert.That(await database.Scalar("SELECT DayCount FROM FeatureAccessUsage WHERE AccountId=2"), Is.EqualTo(5));
+    }
+
+    [Test]
+    public async Task Aggregate_limits_share_slots_across_features_and_accounts_but_exempt_task_status()
+    {
+        await using var database = await Database.Create();
+        var options = OptionsFactory.Create(new FeatureConcurrencyOptions
+        {
+            MaxConcurrentPerAccount = 1,
+            MaxConcurrentPerSourceIp = 1
+        });
+        var first = new FeatureAccessStore(database.Configuration(), options);
+        var second = new FeatureAccessStore(database.Configuration(), options);
+        var chat = new EffectiveFeature("chat", true, null, null, 1);
+        var image = new EffectiveFeature("image", true, null, 1, 1);
+        var task = new EffectiveFeature("image-task", true, null, null, 1);
+        var source = IPAddress.Parse("192.0.2.10");
+        var mappedSource = source.MapToIPv6();
+        var otherSource = IPAddress.Parse("192.0.2.11");
+
+        var status = await first.Acquire(1, task, default, source);
+        Assert.That(status.LeaseId, Is.Not.Null);
+        var active = await first.Acquire(1, chat, default, source);
+        Assert.That(active.LeaseId, Is.Not.Null);
+        Assert.That((await second.Acquire(1, image, default, otherSource)).LeaseId, Is.Null);
+        Assert.That((await second.Acquire(2, image, default, mappedSource)).LeaseId, Is.Null);
+        Assert.That((await second.Acquire(1, task, default, source)).LeaseId, Is.Null);
+        Assert.That((await second.Acquire(2, task, default, source)).LeaseId, Is.Not.Null);
+        Assert.That(await database.Scalar("SELECT COUNT(*) FROM FeatureAccessLeaseSources"), Is.EqualTo(1));
+
+        await first.Release(active.LeaseId!, default);
+        Assert.That(await database.Scalar("SELECT COUNT(*) FROM FeatureAccessLeaseSources"), Is.Zero);
+        var imageAdmission = await second.Acquire(2, image, default, source);
+        Assert.That(imageAdmission.LeaseId, Is.Not.Null, "Rejected requests must not consume daily quota.");
+        await database.Execute("UPDATE FeatureAccessLeases SET ExpiresAt=datetime('now','-1 second') WHERE FeatureKey='image'");
+        Assert.That((await first.Acquire(1, chat, default, source)).LeaseId, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task Independent_stores_cannot_overbook_a_source_across_accounts_and_features()
+    {
+        await using var database = await Database.Create();
+        var options = OptionsFactory.Create(new FeatureConcurrencyOptions { MaxConcurrentPerSourceIp = 3 });
+        var stores = Enumerable.Range(0, 8).Select(_ => new FeatureAccessStore(database.Configuration(), options)).ToArray();
+        var source = IPAddress.Parse("2001:db8::1");
+        var admissions = await Task.WhenAll(Enumerable.Range(0, 24).Select(i => Task.Run(() =>
+            stores[i % stores.Length].Acquire(i + 1, new(i % 2 == 0 ? "chat" : "image", true, null, null, 1), default, source))));
+
+        Assert.That(admissions.Count(admission => admission.LeaseId is not null), Is.EqualTo(3));
     }
 
     [Test]

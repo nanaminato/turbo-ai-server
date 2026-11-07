@@ -14,6 +14,7 @@
       <EmbeddedResource Include="../../src/RelaxKon.Auth/Resources/account/create-admin.sql" LogicalName="CreateAdmin.sql" />
       <EmbeddedResource Include="../../src/RelaxKon.Auth/Resources/merge/performance-index-upgrade.sql" LogicalName="PerformanceIndexes.sql" />
       <EmbeddedResource Include="../../src/RelaxKon.Auth/Resources/merge/feature-access.sql" LogicalName="FeatureAccess.sql" />
+      <EmbeddedResource Include="../../src/RelaxKon.Auth/Resources/sqlite/feature-concurrency.sql" LogicalName="SqliteFeatureConcurrency.sql" />
       <EmbeddedResource Include="../../src/RelaxKon.Auth/Resources/merge/apimart-task-route-upgrade.sql" LogicalName="ApimartTaskRoute.sql" />
       <EmbeddedResource Include="../../src/RelaxKon.Auth/Resources/merge/role-system-upgrade.sql" LogicalName="RoleSystem.sql" />
       <EmbeddedResource Include="Fixtures/pre-architecture-e01436d.sql" LogicalName="PreArchitecture.sql" />

@@ -38,6 +38,17 @@ HTTP 429 返回 `code:feature_limit_exceeded` 和 `Retry-After`（秒）。HTTP 
 
 ## 部署与迁移
 
+### 账号和来源 IP 总并发
+
+设置 `FeatureConcurrency:MaxConcurrentPerAccount` 和 `FeatureConcurrency:MaxConcurrentPerSourceIp`，例如分别设为 `3` 和 `8`。两项均接受正整数或 `null`，默认 `null`，可分别启用。环境变量对应 `FeatureConcurrency__MaxConcurrentPerAccount` 和 `FeatureConcurrency__MaxConcurrentPerSourceIp`。同一部署的所有副本应使用相同配置。
+
+- 聊天、生图与图片上传、语音处理、文件提取共用总额度。任务状态查询和图片代理只使用原有单功能配额。总额度在单功能配额之外检查，命中任一额度返回现有的 `429 feature_limit_exceeded` 和 `Retry-After`，准入拒绝不扣次数。
+- 来源取服务端识别的客户端 IP。直连使用连接地址。使用反向代理时，在 `ForwardedHeaders:KnownProxies` 配置受信任代理的 IP 地址，代理应清洗或覆盖外部传入的 `X-Forwarded-For`。多跳部署应列出链上的可信代理，并将 `ForwardedHeaders:ForwardLimit` 设为所需跳数，默认 1。共享出口 IP 的账号共用来源额度，无法取得连接地址时使用共享的未知来源额度。
+- 来源记录只保留 IP 派生的键，并随请求租约删除。账号和来源都以未过期的 HTTP 租约计数，现有用量接口继续返回各功能自己的配额。
+- 已有数据库在启用前执行对应的升级脚本：[MySQL](../src/RelaxKon.Auth/Resources/merge/feature-concurrency.sql) 或 [SQLite](../src/RelaxKon.Auth/Resources/sqlite/feature-concurrency.sql)。新库初始化已包含这些表。启用或调整额度时，先停止接收新请求并排空旧副本的请求，再以一致配置启动各副本。启用来源限额前签发的租约没有来源记录。
+
+### 基础功能配额
+
 1. 备份数据库，先执行 `src/RelaxKon.Auth/Resources/merge/feature-access.sql`；新安装 `--init-db` 的嵌入式 schema 已包含这些表。不要在生产环境调用测试初始化。
 2. 所有副本必须共享同一 MySQL 主库；不能将限流读写路由至异步只读副本。
 3. **默认没有功能授权：升级后所有受管功能拒绝，包含管理员。** 使用已有管理员账户打开前端策略页面，明确保存各角色开关、分钟/每日请求数及并发限制后再开放流量。没有自动把原来的 VIP 策略转换成无限权限。

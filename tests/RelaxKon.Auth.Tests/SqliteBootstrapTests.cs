@@ -2,6 +2,10 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using RelaxKon.Auth.Bootstrap;
 using RelaxKon.Auth.Data;
+using RelaxKon.Auth.Security.FeatureAccess;
+using RelaxKon.Auth.Security.PasswordReset;
+using RelaxKon.Auth.Security.Registration;
+using OptionsFactory = Microsoft.Extensions.Options.Options;
 
 namespace RelaxKon.Auth.Tests;
 
@@ -67,6 +71,37 @@ public class SqliteBootstrapTests
         Assert.That(Convert.ToInt64(await command.ExecuteScalarAsync()), Is.EqualTo(1));
         command.CommandText = "DELETE FROM Accounts WHERE AccountId=1; SELECT COUNT(*) FROM AccountRoles";
         Assert.That(Convert.ToInt64(await command.ExecuteScalarAsync()), Is.Zero);
+    }
+
+    [Test]
+    public async Task Existing_database_requires_the_source_migration_only_when_enabled()
+    {
+        await new DatabaseBootstrapper().RunAsync(_provider, Admin, true);
+        await using var connection = _provider.CreateConnection();
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DROP TABLE FeatureAccessLeaseSources";
+        await command.ExecuteNonQueryAsync();
+
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Database:Provider"] = "Sqlite",
+            ["ConnectionStrings:ciko"] = _provider.ConnectionString
+        }).Build();
+        var registration = OptionsFactory.Create(new RegistrationOptions());
+        var smtp = OptionsFactory.Create(new PasswordResetOptions());
+        var accountOnly = OptionsFactory.Create(new FeatureConcurrencyOptions { MaxConcurrentPerAccount = 1 });
+        var withSource = OptionsFactory.Create(new FeatureConcurrencyOptions { MaxConcurrentPerSourceIp = 1 });
+        await new DatabaseSchemaValidationService(configuration, registration, smtp, accountOnly).StartAsync(default);
+        var validator = new DatabaseSchemaValidationService(configuration, registration, smtp, withSource);
+        var error = Assert.ThrowsAsync<InvalidOperationException>(() => validator.StartAsync(default));
+        Assert.That(error!.Message, Does.Contain("feature-concurrency.sql"));
+
+        using var script = new StreamReader(typeof(SqliteBootstrapTests).Assembly.GetManifestResourceStream("SqliteFeatureConcurrency.sql")!);
+        command.CommandText = await script.ReadToEndAsync();
+        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync();
+        await validator.StartAsync(default);
     }
 
     [Test]

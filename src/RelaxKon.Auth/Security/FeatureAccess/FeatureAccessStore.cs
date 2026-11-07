@@ -1,17 +1,24 @@
 using System.Text.Json;
 using RelaxKon.Auth.Application.Media;
+using System.Data;
 using System.Data.Common;
+using System.Net;
+using System.Security.Cryptography;
 using RelaxKon.Auth.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Options;
 using RelaxKon.Auth.Data.Contexts;
 
 namespace RelaxKon.Auth.Security.FeatureAccess;
 
 // Admission is serialized by database locks, never by a process-local fallback.
-public sealed class FeatureAccessStore(IConfiguration configuration) : IImageTaskReceipts
+public sealed class FeatureAccessStore(IConfiguration configuration, IOptions<FeatureConcurrencyOptions>? concurrencyOptions = null) : IImageTaskReceipts
 {
     private readonly DatabaseProvider provider = DatabaseProvider.FromConfiguration(configuration);
+    private readonly FeatureConcurrencyOptions concurrency = concurrencyOptions?.Value ?? new();
+    private const string TaskStatusFeature = "image-task";
+    private const string ImageProxyFeature = "image-proxy";
     private async Task<DbConnection> Open(CancellationToken token)
     {
         var connection = provider.CreateConnection();
@@ -83,10 +90,24 @@ public sealed class FeatureAccessStore(IConfiguration configuration) : IImageTas
         }
         await command.ExecuteNonQueryAsync();
     }
-    public async Task<Admission> Acquire(int accountId, EffectiveFeature feature, CancellationToken token)
+    public async Task<Admission> Acquire(int accountId, EffectiveFeature feature, CancellationToken token,
+        IPAddress? sourceIp = null)
     {
+        var countsTowardsTotal = feature.Key is not (TaskStatusFeature or ImageProxyFeature);
+        var accountLimit = countsTowardsTotal ? concurrency.MaxConcurrentPerAccount : null;
+        var sourceLimit = countsTowardsTotal ? concurrency.MaxConcurrentPerSourceIp : null;
+        var sourceKey = sourceLimit.HasValue ? SourceKey(sourceIp) : null;
         await using var connection = await Open(token);
-        await using var transaction = await provider.BeginWrite(connection, token);
+        // The admission locks serialize inserts. READ COMMITTED avoids range gap locks
+        // between otherwise independent admissions when pruning expired leases in MySQL.
+        await using var transaction = await provider.BeginWrite(connection, token, IsolationLevel.ReadCommitted);
+        if (!provider.IsSqlite)
+        {
+            // Fixed buckets bound the lock table size. Exact keys still determine quota.
+            // Always acquire account, source and then account+feature locks in that order.
+            if (accountLimit.HasValue) await LockConcurrencyBucket(connection, transaction, accountId & 255, token);
+            if (sourceKey is not null) await LockConcurrencyBucket(connection, transaction, 256 + sourceKey[0], token);
+        }
         var args = new (string, object?)[] { ("@account", accountId), ("@feature", feature.Key) };
         await using (var seed = Command(connection, transaction,
             provider.Choose("INSERT INTO FeatureAccessUsage (AccountId,FeatureKey) VALUES (@account,@feature) ON DUPLICATE KEY UPDATE AccountId=@account",
@@ -115,6 +136,21 @@ public sealed class FeatureAccessStore(IConfiguration configuration) : IImageTas
             : feature.RequestsPerMinute is { } rate && minuteCount >= rate ? 60 - now % 60
             : feature.MaxConcurrent is { } max && concurrent >= max ? 1 : 0;
         if (retry > 0) return new(null, (int)retry);
+        var utcNow = provider.Choose("UTC_TIMESTAMP()", "datetime('now')");
+        if (accountLimit is { } accountMax)
+        {
+            await using var accountActive = Command(connection, transaction,
+                $"SELECT COUNT(*) FROM FeatureAccessLeases WHERE AccountId=@account AND FeatureKey NOT IN (@task,@proxy) AND ExpiresAt>{utcNow}",
+                ("@account", accountId), ("@task", TaskStatusFeature), ("@proxy", ImageProxyFeature));
+            if (Convert.ToInt64(await accountActive.ExecuteScalarAsync(token)) >= accountMax) return new(null, 1);
+        }
+        if (sourceKey is not null && sourceLimit is { } sourceMax)
+        {
+            await using var sourceActive = Command(connection, transaction,
+                $"SELECT COUNT(*) FROM FeatureAccessLeaseSources s JOIN FeatureAccessLeases l ON l.LeaseId=s.LeaseId WHERE s.SourceKey=@source AND l.ExpiresAt>{utcNow}",
+                ("@source", sourceKey));
+            if (Convert.ToInt64(await sourceActive.ExecuteScalarAsync(token)) >= sourceMax) return new(null, 1);
+        }
         var id = Guid.NewGuid().ToString("N");
         await using (var update = Command(connection, transaction,
             "UPDATE FeatureAccessUsage SET MinuteWindow=@minute,DayWindow=@day,MinuteCount=@mc,DayCount=@dc WHERE AccountId=@account AND FeatureKey=@feature",
@@ -124,8 +160,27 @@ public sealed class FeatureAccessStore(IConfiguration configuration) : IImageTas
             provider.Choose("INSERT INTO FeatureAccessLeases (LeaseId,AccountId,FeatureKey,ExpiresAt) VALUES (@id,@account,@feature,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 90 SECOND))",
                 "INSERT INTO FeatureAccessLeases (LeaseId,AccountId,FeatureKey,ExpiresAt) VALUES (@id,@account,@feature,datetime('now','+90 seconds'))"),
             args.Append(("@id", (object?)id)).ToArray())) await lease.ExecuteNonQueryAsync(token);
+        if (sourceKey is not null)
+        {
+            await using var source = Command(connection, transaction,
+                "INSERT INTO FeatureAccessLeaseSources (LeaseId,SourceKey) VALUES (@id,@source)",
+                ("@id", id), ("@source", sourceKey));
+            await source.ExecuteNonQueryAsync(token);
+        }
         await transaction.CommitAsync(token);
         return new(id, 0);
+    }
+    private async Task LockConcurrencyBucket(DbConnection connection, DbTransaction transaction, int bucket, CancellationToken token)
+    {
+        await using var command = Command(connection, transaction,
+            "INSERT INTO FeatureAccessConcurrencyLocks (Bucket) VALUES (@bucket) ON DUPLICATE KEY UPDATE Bucket=@bucket",
+            ("@bucket", bucket));
+        await command.ExecuteNonQueryAsync(token);
+    }
+    private static byte[] SourceKey(IPAddress? sourceIp)
+    {
+        if (sourceIp?.IsIPv4MappedToIPv6 == true) sourceIp = sourceIp.MapToIPv4();
+        return SHA256.HashData(sourceIp?.GetAddressBytes() ?? []);
     }
     public async Task RecordTask(int accountId, string taskId, CancellationToken token, int? supplierKeyId = null)
     {

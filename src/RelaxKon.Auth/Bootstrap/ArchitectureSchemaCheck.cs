@@ -1,6 +1,8 @@
 using MySqlConnector;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Options;
 using RelaxKon.Auth.Data;
+using RelaxKon.Auth.Security.FeatureAccess;
 
 namespace RelaxKon.Auth.Bootstrap;
 
@@ -179,13 +181,35 @@ public static class ArchitectureSchemaCheck
 
 public sealed class DatabaseSchemaValidationService(IConfiguration configuration,
     Microsoft.Extensions.Options.IOptions<RelaxKon.Auth.Security.Registration.RegistrationOptions> registration,
-    Microsoft.Extensions.Options.IOptions<RelaxKon.Auth.Security.PasswordReset.PasswordResetOptions> smtp) : IHostedService
+    Microsoft.Extensions.Options.IOptions<RelaxKon.Auth.Security.PasswordReset.PasswordResetOptions> smtp,
+    IOptions<FeatureConcurrencyOptions> concurrency) : IHostedService
 {
     public async Task StartAsync(CancellationToken token)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        await ArchitectureSchemaCheck.Validate(DatabaseProvider.FromConfiguration(configuration), timeout.Token, registration.Value.Enabled && smtp.Value.IsSmtpValid());
+        var provider = DatabaseProvider.FromConfiguration(configuration);
+        await ArchitectureSchemaCheck.Validate(provider, timeout.Token, registration.Value.Enabled && smtp.Value.IsSmtpValid());
+        var tables = new List<string>();
+        if (concurrency.Value.MaxConcurrentPerSourceIp.HasValue) tables.Add("FeatureAccessLeaseSources");
+        if (!provider.IsSqlite && (concurrency.Value.MaxConcurrentPerAccount.HasValue || concurrency.Value.MaxConcurrentPerSourceIp.HasValue))
+            tables.Add("FeatureAccessConcurrencyLocks");
+        if (tables.Count == 0) return;
+
+        await using var connection = provider.CreateConnection();
+        await connection.OpenAsync(timeout.Token);
+        var tableExists = provider.Choose(
+            "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=@table",
+            "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name=@table");
+        foreach (var table in tables)
+        {
+            await using var command = provider.Command(connection, null, tableExists, ("@table", table));
+            if (Convert.ToInt64(await command.ExecuteScalarAsync(timeout.Token)) == 0)
+            {
+                var directory = provider.IsSqlite ? "sqlite" : "merge";
+                throw new InvalidOperationException($"数据库缺少 {table}。启用总并发限制前请执行 Resources/{directory}/feature-concurrency.sql。");
+            }
+        }
     }
     public Task StopAsync(CancellationToken token) => Task.CompletedTask;
 }

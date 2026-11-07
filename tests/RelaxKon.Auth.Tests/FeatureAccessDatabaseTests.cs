@@ -1,4 +1,6 @@
+using System.Net;
 using Microsoft.Extensions.Configuration;
+using OptionsFactory = Microsoft.Extensions.Options.Options;
 using MySqlConnector;
 using RelaxKon.Auth.Bootstrap;
 using RelaxKon.Auth.Security.FeatureAccess;
@@ -99,6 +101,21 @@ public class FeatureAccessDatabaseTests
             Assert.That(await stores[1].OwnsTask(1, "provider-task", default), Is.True);
             Assert.That(await stores[1].OwnsTask(2, "provider-task", default), Is.False);
             Assert.That(await stores[1].OwnsTask(1, "legacy-task", default), Is.False);
+
+            var totals = OptionsFactory.Create(new FeatureConcurrencyOptions
+            {
+                MaxConcurrentPerAccount = 2,
+                MaxConcurrentPerSourceIp = 3
+            });
+            var limitedStores = new[] { new FeatureAccessStore(configuration, totals), new FeatureAccessStore(configuration, totals) };
+            var source = IPAddress.Parse("192.0.2.10");
+            var accountAttempts = await Task.WhenAll(Enumerable.Range(0, 20).Select(i =>
+                limitedStores[i % 2].Acquire(100, new(i % 2 == 0 ? "chat" : "image", true, null, null, null), default,
+                    IPAddress.Parse($"192.0.2.{20 + i}"))));
+            Assert.That(accountAttempts.Count(a => a.LeaseId is not null), Is.EqualTo(2));
+            var sourceAttempts = await Task.WhenAll(Enumerable.Range(0, 20).Select(i =>
+                limitedStores[i % 2].Acquire(200 + i, new(i % 2 == 0 ? "chat" : "image", true, null, null, null), default, source)));
+            Assert.That(sourceAttempts.Count(a => a.LeaseId is not null), Is.EqualTo(3));
         }
         finally
         {

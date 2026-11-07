@@ -3,6 +3,8 @@ using RelaxKon.Auth.Application.Media;
 using RelaxKon.Auth.Security.Registration;
 using RelaxKon.Auth.Security.FeatureAccess;
 using System.Threading.RateLimiting;
+using System.Net;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.DataProtection;
 using RelaxKon.Auth.Security.PasswordReset;
 using RelaxKon.Auth.Bootstrap;
@@ -61,6 +63,32 @@ if (args.Length == 1 && string.Equals(args[0], "--hash-password", StringComparis
 }
 
 var builder = WebApplication.CreateBuilder(args);
+var knownProxies = (builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+    .Select(IPAddress.Parse).ToArray();
+var forwardLimit = builder.Configuration.GetValue("ForwardedHeaders:ForwardLimit", 1);
+if (knownProxies.Length > 0 && forwardLimit <= 0)
+    throw new InvalidOperationException("ForwardedHeaders:ForwardLimit must be positive.");
+builder.Services.PostConfigure<ForwardedHeadersOptions>(options =>
+{
+    if (knownProxies.Length == 0)
+    {
+        // The host can install forwarding itself. An empty trust list must never
+        // let arbitrary clients choose the address used for admission.
+        if (options.KnownIPNetworks.Count == 0 && options.KnownProxies.Count == 0)
+            options.ForwardedHeaders &= ~ForwardedHeaders.XForwardedFor;
+        return;
+    }
+
+    options.ForwardedHeaders |= ForwardedHeaders.XForwardedFor;
+    options.ForwardLimit = forwardLimit;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+    foreach (var proxy in knownProxies) options.KnownProxies.Add(proxy);
+});
+builder.Services.AddOptions<FeatureConcurrencyOptions>()
+    .BindConfiguration(FeatureConcurrencyOptions.Section)
+    .Validate(options => options.IsValid(), "Feature concurrency limits must be positive or null.")
+    .ValidateOnStart();
 var allowAnyCorsOrigin = builder.Environment.IsDevelopment();
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()?
     .Where(origin => Uri.TryCreate(origin, UriKind.Absolute, out _))
@@ -303,6 +331,7 @@ else
 }
 
 var app = builder.Build();
+if (knownProxies.Length > 0) app.UseForwardedHeaders();
 app.UseRequestLocalization();
 app.UseExceptionHandler(exceptionApp => exceptionApp.Run(async context =>
 {

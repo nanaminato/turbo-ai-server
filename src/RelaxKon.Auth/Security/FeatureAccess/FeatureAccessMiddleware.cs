@@ -27,7 +27,7 @@ public sealed class FeatureAccessMiddleware(RequestDelegate next, ILogger<Featur
             var roles = await identity.Roles(account.Value, context.RequestAborted);
             var policy = FeaturePolicies.Resolve(await store.Read(context.RequestAborted), feature.Key, roles);
             if (!policy.Enabled) { await Error(context, 403, "feature_disabled", feature.Key); return; }
-            admission = await store.Acquire(account.Value, policy, context.RequestAborted);
+            admission = await store.Acquire(account.Value, policy, context.RequestAborted, context.Connection.RemoteIpAddress);
         }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { return; }
         catch (Exception exception)

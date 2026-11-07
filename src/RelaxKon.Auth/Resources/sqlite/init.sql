@@ -236,6 +236,12 @@ CREATE TABLE IF NOT EXISTS FeatureAccessLeases (
     ExpiresAt TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS FeatureAccessLeaseSources (
+    LeaseId TEXT NOT NULL PRIMARY KEY REFERENCES FeatureAccessLeases (LeaseId) ON DELETE CASCADE,
+    SourceKey BLOB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS IX_FeatureLeaseSource ON FeatureAccessLeaseSources (SourceKey);
+
 CREATE TABLE IF NOT EXISTS FeatureAccessTasks (
     TaskId TEXT NOT NULL PRIMARY KEY,
     AccountId INTEGER NOT NULL,
