@@ -1,6 +1,8 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json.Linq;
+using RelaxKon.Auth.Application.Sync;
 using RelaxKon.Auth.Data.Contexts;
 using RelaxKon.Auth.Models.Accounts;
 using RelaxKon.Auth.Models.Sync.Messages;
@@ -93,6 +95,55 @@ public class SyncRepositoryTests
         Assert.That((await sync.Read(2, 0, default)).Changes.Single(item => item.Kind == "message").Payload!["content"]!.ToString(), Is.EqualTo("message2"));
         Assert.ThrowsAsync<RelaxKon.Auth.Application.Sync.SyncConflictException>(() => sync.Apply(1,
             message with { Action = "delete", Payload = null }, default));
+    }
+
+    [Test]
+    public async Task Language_pack_snapshots_respect_accounts_deletes_and_legacy_clients()
+    {
+        var sync = new DataSyncService(_database);
+        const string document = """{"code":"fr","name":"Français","translations":{"account":{"username":"2026-11-06T12:30:10Z"}}}""";
+        var pack = new SyncMutation(Guid.NewGuid(), "languagePack", "upsert", "fr",
+            Payload: new JObject { ["document"] = document });
+        Assert.That(await sync.Apply(1, pack, default), Is.EqualTo(1));
+        Assert.That(await sync.Apply(1, pack, default), Is.EqualTo(1));
+        Assert.That((await sync.Read(1, 0, default, languagePacks: true)).LanguagePacks!.Single().Payload!["document"]!.ToString(),
+            Is.EqualTo(document));
+        Assert.That((await sync.Read(2, 0, default, languagePacks: true)).LanguagePacks, Is.Empty);
+
+        var oldClient = await sync.Read(1, 0, default);
+        Assert.That(oldClient.LanguagePacks, Is.Null);
+        Assert.That(oldClient.Changes.Select(item => item.Kind), Does.Not.Contain("languagePack"));
+        var upgraded = await sync.Read(1, oldClient.Cursor, default, languagePacks: true, languagePackSnapshot: true);
+        Assert.That(upgraded.LanguagePacks!.Single().EntityId, Is.EqualTo("fr"));
+
+        await sync.Apply(1, new(Guid.NewGuid(), "languagePack", "delete", "fr"), default);
+        var changes = await sync.Read(1, upgraded.Cursor, default, languagePacks: true);
+        Assert.That(changes.Changes.Single().Action, Is.EqualTo("delete"));
+        var legacyChanges = await sync.Read(1, upgraded.Cursor, default);
+        Assert.That(legacyChanges.Changes, Is.Empty);
+        Assert.That(legacyChanges.Cursor, Is.EqualTo(changes.Cursor));
+        Assert.That((await sync.Read(1, 0, default, languagePacks: true)).LanguagePacks, Is.Empty);
+    }
+
+    [Test]
+    public async Task Interface_language_initialization_cannot_override_a_saved_account_selection()
+    {
+        var sync = new DataSyncService(_database);
+        SyncMutation Select(string code, bool initialize = false) => new(Guid.NewGuid(), "uiLanguage", "upsert", "selected",
+            Payload: new JObject { ["code"] = code, ["initialize"] = initialize });
+        await sync.Apply(1, Select("fr", initialize: true), default);
+        await sync.Apply(1, Select("jp"), default);
+        await sync.Apply(1, Select("en", initialize: true), default);
+        await sync.Apply(2, Select("en"), default);
+
+        var fresh = await sync.Read(1, 0, default, languagePacks: true, uiLanguage: true);
+        Assert.That((string?)fresh.LanguagePacks!.Single().Payload!["code"], Is.EqualTo("jp"));
+        var upgrade = await sync.Read(1, fresh.Cursor, default, languagePacks: true, languagePackSnapshot: true, uiLanguage: true);
+        Assert.That((string?)upgrade.LanguagePacks!.Single().Payload!["code"], Is.EqualTo("jp"));
+        Assert.That((await sync.Read(1, 0, default, languagePacks: true)).LanguagePacks, Is.Empty);
+        Assert.That((await sync.Read(1, 1, default, languagePacks: true)).Changes, Is.Empty);
+        Assert.That((string?)(await sync.Read(2, 0, default, languagePacks: true, uiLanguage: true))
+            .LanguagePacks!.Single().Payload!["code"], Is.EqualTo("en"));
     }
 
     [Test]

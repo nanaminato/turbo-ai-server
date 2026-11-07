@@ -6,7 +6,7 @@ using RelaxKon.Auth.Application.Sync;
 namespace RelaxKon.Auth.Contracts.Sync;
 
 public sealed record SyncMutationRequest(
-    Guid OperationId, [Required, AllowedValues("history", "message", "task")] string Kind,
+    Guid OperationId, [Required, AllowedValues("history", "message", "task", "languagePack", "uiLanguage")] string Kind,
     [Required, AllowedValues("upsert", "delete")] string Action,
     [Required, StringLength(255)] string EntityId, long? HistoryId = null, JToken? Payload = null) : IValidatableObject
 {
@@ -18,10 +18,17 @@ public sealed record SyncMutationRequest(
     public SyncMutation ToApplication() => new(OperationId, Kind, Action, EntityId, HistoryId, Payload);
 }
 public sealed record SyncVersionResponse(long Version);
-public sealed record SyncBatchResponse(long Cursor, bool Reset, bool HasMore, IReadOnlyList<SyncEventResponse> Changes)
+public sealed record SyncBatchResponse(long Cursor, bool Reset, bool HasMore, IReadOnlyList<SyncEventResponse> Changes,
+    [property: JsonProperty(NullValueHandling = NullValueHandling.Ignore)] IReadOnlyList<SyncEventResponse>? LanguagePacks = null)
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public bool? UiLanguageSupported { get; init; }
+
     public static SyncBatchResponse From(SyncBatch batch) => new(batch.Cursor, batch.Reset, batch.HasMore,
-        batch.Changes.Select(item => new SyncEventResponse(item.Version, item.Kind, item.Action, item.EntityId, item.HistoryId, item.Payload)).ToList());
+        batch.Changes.Select(ToResponse).ToList(), batch.LanguagePacks?.Select(ToResponse).ToList());
+
+    private static SyncEventResponse ToResponse(SyncEvent item) =>
+        new(item.Version, item.Kind, item.Action, item.EntityId, item.HistoryId, item.Payload);
 }
 public sealed record SyncEventResponse(long Version, string Kind, string Action, string EntityId, long? HistoryId, JToken? Payload);
 public sealed class RequestTask { public List<string>? TaskIds { get; init; } }

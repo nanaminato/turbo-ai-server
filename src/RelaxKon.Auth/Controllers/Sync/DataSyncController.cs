@@ -11,10 +11,15 @@ namespace RelaxKon.Auth.Controllers.Sync;
 public sealed class DataSyncController(DataSyncService sync) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<SyncBatchResponse>> Read(long cursor = 0, CancellationToken token = default)
+    public async Task<ActionResult<SyncBatchResponse>> Read(long cursor = 0, bool languagePacks = false,
+        bool languagePackSnapshot = false, bool uiLanguage = false, CancellationToken token = default)
     {
         if (Request.Headers["X-Sync-Account"] != FeatureIdentity.AccountId(User)!.Value.ToString()) return Conflict(new CodeResponse("sync_account_changed"));
-        try { return Ok(SyncBatchResponse.From(await sync.Read(FeatureIdentity.AccountId(User)!.Value, cursor, token))); }
+        try
+        {
+            var batch = await sync.Read(FeatureIdentity.AccountId(User)!.Value, cursor, token, languagePacks, languagePackSnapshot, uiLanguage);
+            return Ok(SyncBatchResponse.From(batch) with { UiLanguageSupported = uiLanguage ? true : null });
+        }
         catch (ArgumentException) { return BadRequest(new CodeResponse("invalid_sync_cursor")); }
         catch (SyncConflictException) { return Conflict(new CodeResponse("sync_conflict")); }
     }

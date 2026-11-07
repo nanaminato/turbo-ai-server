@@ -1,6 +1,7 @@
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -37,7 +38,7 @@ public sealed class DataSyncService(AuthContext database)
 
     public async Task<long> Apply(int accountId, SyncMutation mutation, CancellationToken token)
     {
-        if (mutation.OperationId == Guid.Empty || mutation.Kind is not ("history" or "message" or "task") ||
+        if (mutation.OperationId == Guid.Empty || mutation.Kind is not ("history" or "message" or "task" or "languagePack" or "uiLanguage") ||
             mutation.Action is not ("upsert" or "delete") || string.IsNullOrWhiteSpace(mutation.EntityId) || mutation.EntityId.Length > 255)
             throw new ArgumentException("Invalid sync operation.");
         var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(mutation))));
@@ -55,6 +56,8 @@ public sealed class DataSyncService(AuthContext database)
         {
             "history" => await History(accountId, mutation, token),
             "message" => await Message(accountId, mutation, token),
+            "languagePack" => LanguagePack(mutation),
+            "uiLanguage" => await UiLanguage(accountId, mutation, token),
             _ => await Task(accountId, mutation, token)
         };
         state.Version++;
@@ -75,7 +78,8 @@ public sealed class DataSyncService(AuthContext database)
         return state.Version;
     }
 
-    public async Task<SyncBatch> Read(int accountId, long cursor, CancellationToken token)
+    public async Task<SyncBatch> Read(int accountId, long cursor, CancellationToken token,
+        bool languagePacks = false, bool languagePackSnapshot = false, bool uiLanguage = false)
     {
         if (cursor < 0) throw new ArgumentException("Invalid sync cursor.");
         await using var transaction = await database.Database.BeginTransactionAsync(MySql ? IsolationLevel.ReadCommitted : IsolationLevel.Serializable, token);
@@ -92,16 +96,93 @@ public sealed class DataSyncService(AuthContext database)
             var changes = histories.Select(item => new SyncEvent(state.Version, "history", "upsert", item.DataId.ToString(), null, HistoryJson(item)))
                 .Concat(messages.Select(item => new SyncEvent(state.Version, "message", "upsert", item.DataId.ToString(), historyIds[item.ChatHistoryId], MessageJson(item))))
                 .Concat(tasks.Select(item => new SyncEvent(state.Version, "task", "upsert", item.TaskId, null, TaskJson(item)))).ToList();
+            var packs = languagePacks ? await ReadLanguagePacks(accountId, uiLanguage, token) : null;
             await transaction.CommitAsync(token);
-            return new(state.Version, true, false, changes);
+            return new(state.Version, true, false, changes, packs);
         }
         var page = await database.Set<SyncChange>().AsNoTracking().Where(item => item.AccountId == accountId && item.Version > cursor)
             .OrderBy(item => item.Version).Take(200).ToListAsync(token);
         var next = page.Count == 0 ? cursor : page[^1].Version;
+        var hasMore = next < state.Version;
+        var snapshot = languagePacks && languagePackSnapshot && !hasMore ? await ReadLanguagePacks(accountId, uiLanguage, token) : null;
         await transaction.CommitAsync(token);
-        return new(next, false, next < state.Version, page.Select(item => new SyncEvent(item.Version, item.Kind, item.Action,
-            item.EntityId, item.HistoryId, item.Payload is null ? null : JToken.Parse(item.Payload))).ToList());
+        return new(next, false, hasMore, page
+            .Where(item => item.Kind switch
+            {
+                "languagePack" => languagePacks && !languagePackSnapshot,
+                "uiLanguage" => languagePacks && uiLanguage && !languagePackSnapshot,
+                _ => true
+            }).Select(ToEvent).ToList(), snapshot);
     }
+
+    private async Task<IReadOnlyList<SyncEvent>> ReadLanguagePacks(int accountId, bool uiLanguage, CancellationToken token)
+    {
+        // The latest event per code is the current value, including deletions.
+        var events = database.Set<SyncChange>().AsNoTracking()
+            .Where(item => item.AccountId == accountId && (item.Kind == "languagePack" || (uiLanguage && item.Kind == "uiLanguage")));
+        var versions = events.GroupBy(item => new { item.Kind, item.EntityId }).Select(group => group.Max(item => item.Version));
+        var packs = await events.Where(item => versions.Contains(item.Version) && item.Action == "upsert").ToListAsync(token);
+        return packs.Select(ToEvent).ToList();
+    }
+
+    private static SyncEvent ToEvent(SyncChange item) => new(item.Version, item.Kind, item.Action,
+        item.EntityId, item.HistoryId, item.Payload is null ? null : JToken.Parse(item.Payload));
+
+    private async Task<JToken> UiLanguage(int accountId, SyncMutation mutation, CancellationToken token)
+    {
+        if (mutation.EntityId != "selected" || mutation.Action != "upsert" || mutation.HistoryId is not null ||
+            mutation.Payload is not JObject payload || payload["code"]?.Type != JTokenType.String ||
+            (string?)payload["code"] is not { Length: <= 64 } code ||
+            !Regex.IsMatch(code, @"\A[a-z]{2,8}(?:-[a-z0-9]{1,8})*\z") ||
+            (payload["initialize"] is { } initialize && initialize.Type != JTokenType.Boolean))
+            throw new ArgumentException("Invalid interface language.");
+
+        if ((bool?)payload["initialize"] == true)
+        {
+            var existing = await database.Set<SyncChange>().Where(item => item.AccountId == accountId && item.Kind == "uiLanguage")
+                .OrderByDescending(item => item.Version).Select(item => item.Payload).FirstOrDefaultAsync(token);
+            if (existing is not null) return JToken.Parse(existing);
+        }
+        return new JObject { ["code"] = code };
+    }
+
+    private static JToken? LanguagePack(SyncMutation mutation)
+    {
+        var code = mutation.EntityId;
+        if (mutation.HistoryId is not null || code.Length > 64 || code is "zh" or "en" or "ja" or "jp" ||
+            !Regex.IsMatch(code, @"\A[a-z]{2,8}(?:-[a-z0-9]{1,8})*\z"))
+            throw new ArgumentException("Invalid language code.");
+        if (mutation.Action == "delete") return null;
+        if (mutation.Payload is not JObject payload || payload["document"]?.Type != JTokenType.String ||
+            (string?)payload["document"] is not { } document || Encoding.UTF8.GetByteCount(document) > 256 * 1024)
+            throw new ArgumentException("Invalid language pack.");
+        JObject pack;
+        try
+        {
+            using var reader = new JsonTextReader(new StringReader(document)) { DateParseHandling = DateParseHandling.None, MaxDepth = 16 };
+            pack = JObject.Load(reader);
+            if (reader.Read()) throw new ArgumentException("Invalid language pack.");
+        }
+        catch (JsonException exception) { throw new ArgumentException("Invalid language pack.", exception); }
+        if (pack["code"]?.Type != JTokenType.String ||
+            (string?)pack["code"] != code || pack["name"]?.Type != JTokenType.String ||
+            (string?)pack["name"] is not { Length: > 0 and <= 80 } name || !HasText(name) ||
+            pack["translations"] is not JObject dictionary || !ValidDictionary(dictionary, 0))
+            throw new ArgumentException("Invalid language pack.");
+        return new JObject { ["document"] = document };
+    }
+
+    private static bool ValidDictionary(JObject dictionary, int depth) =>
+        depth <= 12 && dictionary.Count > 0 && dictionary.Properties().All(property =>
+            Regex.IsMatch(property.Name, @"\A[A-Za-z0-9_-]+\z") &&
+            property.Name is not ("__proto__" or "constructor" or "prototype" or "hasOwnProperty" or
+                "isPrototypeOf" or "propertyIsEnumerable" or "toLocaleString" or "toString" or "valueOf" or
+                "__defineGetter__" or "__defineSetter__" or "__lookupGetter__" or "__lookupSetter__") &&
+            (property.Value is JObject child ? ValidDictionary(child, depth + 1) :
+                property.Value.Type == JTokenType.String && HasText((string)property.Value!)));
+
+    private static bool HasText(string value) =>
+        value.Any(character => character != '\uFEFF' && (!char.IsWhiteSpace(character) || character == '\u0085'));
 
     private static long NumericId(SyncMutation mutation) => long.TryParse(mutation.EntityId, out var id) && id > 0 && id <= 9007199254740991
         ? id : throw new ArgumentException("Invalid client ID.");
